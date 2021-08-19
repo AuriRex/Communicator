@@ -5,14 +5,53 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static NetFramework45Test.Program.MyCoolCustomEventPacket;
 
 namespace NetFramework45Test
 {
     class Program
     {
+        public class MyCoolCustomEventPacket : BasePacket<CustomEventData>
+        {
+            public override CustomEventData PacketData { get; set; }
+
+            public class CustomEventData
+            {
+                public string Message { get; set; }
+            }
+        }
+
+        
+
         static void Main(string[] args)
         {
+            /*var t = new Communicator.Net.Encryption.EncryptionProvider.S_AES();
+
+            var key = t.GetKey(true);
+            var iv = t.GetIV();
+
+            var data = Encoding.Unicode.GetBytes("My Secret message :)");
+
+            data = t.Encrypt(data, key, iv);
+            data = t.Decrypt(data, key, iv);
+
+            Console.WriteLine($"{Encoding.Unicode.GetString(data)}");
+
+            var u = new Communicator.Net.Encryption.EncryptionProvider.A_RSA();
+
+            var privateKey = u.GetKey(true);
+            var publicKey = u.GetKey(false);
+
+            data = u.Encrypt(data, publicKey, new byte[0]);
+            data = u.Decrypt(data, privateKey, new byte[0]);
+
+            Console.WriteLine($"{Encoding.Unicode.GetString(data)}");
+
+            Console.WriteLine("Press any key to continue ...");
+            Console.ReadKey();*/
+
             GameserverClient cl = new GameserverClient("localhost", 11000, "aPersistentServerId", "terraria", (s) => { Console.WriteLine($"[Info ] {s}"); } );
+            cl.RegisterPacket<MyCoolCustomEventPacket>();
             cl.ErrorAction = (s) => { Console.WriteLine($"[Error] {s}"); };
             cl.PacketReceivedEvent += Cl_PacketReceivedEvent;
             Console.WriteLine("Test");
@@ -20,11 +59,10 @@ namespace NetFramework45Test
             {
                 string message = Console.ReadLine();
 
-                cl.SendPacket(new GenericEventPacket() {
-                    PacketData = new GenericEventPacket.EventData
+                cl.SendPacket(new MyCoolCustomEventPacket() {
+                    PacketData = new MyCoolCustomEventPacket.CustomEventData
                     {
-                        Type = "Chat",
-                        Data = message
+                        Message = message
                     }
                 });
             }

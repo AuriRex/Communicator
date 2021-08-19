@@ -6,6 +6,7 @@ using Communicator.Interfaces;
 using Communicator.Packets;
 using System.Linq;
 using Communicator.Attributes;
+using Communicator.Net.Encryption;
 
 namespace Communicator.Net
 {
@@ -14,20 +15,18 @@ namespace Communicator.Net
         public bool Connected { get; private set; } = false;
         public static PacketSerializer PacketSerializer { get; set; } = new PacketSerializer();
 
+        private string _serverId;
+        private string _gameName;
         private IdentificationPacket _identificationPacket;
+        private EncryptionProvider.S_AES _aesEncryptionInstance = new EncryptionProvider.S_AES();
 
         public GameserverClient(string hostname, int port, string serverId, string gameName, Action<string> logAction = null) : base(new TcpClient(hostname, port), PacketSerializer, logAction)
         {
+            _serverId = serverId;
+            _gameName = gameName;
             this.OnlyAcceptPacketsOfType(typeof(ConfirmationPacket));
-            _identificationPacket = new IdentificationPacket()
-            {
-                PacketData = new IdentificationData
-                {
-                    ServerID = serverId,
-                    GameName = gameName
-                }
-            };
-            this.SendPacket(_identificationPacket);
+
+            SetAsymmetricalEncryptionProvider(new EncryptionProvider.A_RSA());
         }
 
         public void RegisterPacket<T>() where T : IPacket
@@ -39,21 +38,40 @@ namespace Communicator.Net
         {
             if (!Connected)
             {
-                if (incomingPacket.GetType() != typeof(ConfirmationPacket)) return;
-
-                var confirmationPacket = (ConfirmationPacket) incomingPacket;
-
-                string outgoingPacketHash = Utils.Utils.HashPacket(_identificationPacket);
-
-                if(confirmationPacket.PacketData.Hash != outgoingPacketHash)
+                switch(incomingPacket)
                 {
-                    LogAction?.Invoke($"Confirmation Hash doesn't match, dropping connection!");
-                    this.StartDisconnect();
-                    return;
-                }
+                    case InitialPublicKeyPacket ipkp:
 
-                this.AcceptAllPackets();
-                Connected = true;
+                        byte[] publicKey = ipkp.PacketData.GetKey();
+
+                        var encryptedKey = AsymmetricEncryptionProvider.Encrypt(_aesEncryptionInstance.GetKey(false), publicKey, new byte[0]);
+                        var encryptedIV = AsymmetricEncryptionProvider.Encrypt(_aesEncryptionInstance.GetIV(), publicKey, new byte[0]);
+                        _identificationPacket = new IdentificationPacket()
+                        {
+                            PacketData = IdentificationData.CreateKeyData(_serverId, _gameName, encryptedKey, encryptedIV)
+                        };
+
+                        this.SendPacket(_identificationPacket);
+
+                        break;
+                    case ConfirmationPacket confirmationPacket:
+                        string identificationPacketHash = Utils.Utils.HashPacket(_identificationPacket);
+
+                        if (confirmationPacket.PacketData.Hash != identificationPacketHash)
+                        {
+                            LogAction?.Invoke($"Confirmation Hash doesn't match, dropping connection!");
+                            this.StartDisconnect();
+                            return;
+                        }
+
+                        this.SetEncryption(_aesEncryptionInstance);
+                        this.SetEncryptionData(_aesEncryptionInstance.GetKey(true), _aesEncryptionInstance.GetIV());
+                        this.AcceptAllPackets();
+                        Connected = true;
+                        return;
+                    default:
+                        return;
+                }
             }
 
             if (!incomingPacket.GetType().CustomAttributes.Any(x => x.AttributeType == typeof(NoConfirmationAttribute)))

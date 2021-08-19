@@ -21,6 +21,9 @@ namespace Communicator.Net
                 set => _logAction = value;
             }
             internal Action<string> ErrorAction { get; set; }
+            internal IEncryptionProvider EncryptionProvider { get; set; } = Encryption.EncryptionProvider.NONE;
+            internal byte[] KeyBytes { get; set; } = new byte[0];
+            internal byte[] IVBytes { get; set; } = new byte[0];
             internal int BufferSize { get; set; } = 2048;
 
             internal event EventHandler<IPacket> PacketReceived;
@@ -29,6 +32,7 @@ namespace Communicator.Net
             private NetworkStream _stream;
             private Thread _thread;
             private byte[] _data;
+            private byte[] _messageLengthData;
             private ManualResetEvent _shutdownEvent;
             private PacketSerializer _packetSerializer;
             private Action<string> _logAction;
@@ -52,7 +56,7 @@ namespace Communicator.Net
                     
                     while (!_shutdownEvent.WaitOne(0))
                     {
-                        _data = new byte[BufferSize];
+                        _messageLengthData = new byte[4];
                         try
                         {
                             //_data.Clear();
@@ -61,9 +65,24 @@ namespace Communicator.Net
                                 // Give up the remaining time slice.
                                 Thread.Sleep(1);
                             }
-                            else if (_stream.Read(_data, 0, _data.Length) > 0)
+                            else if (_stream.Read(_messageLengthData, 0, 4) > 0)
                             {
+                                var length = BitConverter.ToInt32(_messageLengthData, 0);
+                                _data = new byte[length];
+                                _stream.Read(_data, 0, length);
                                 // Raise the DataReceived event w/ data...
+
+                                try
+                                {
+                                    _data = EncryptionProvider.Decrypt(_data, KeyBytes, IVBytes);
+                                }
+                                catch(Exception)
+                                {
+                                    ErrorAction?.Invoke($"Decryption with '{EncryptionProvider.GetType()}' failed, falling back to no encryption!");
+                                    _data = Encryption.EncryptionProvider.NONE.Decrypt(_data, KeyBytes, IVBytes);
+                                }
+                                
+
                                 string jsonPacket = ASCIIEncoding.UTF8.GetString(_data);
 
                                 var packet = _packetSerializer.DeserializePacket(jsonPacket);

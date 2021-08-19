@@ -24,6 +24,7 @@ namespace Communicator.Net
             this.RegisterPacket<DisconnectPacket>();
             this.RegisterPacket<ReconnectPacket>();
             this.RegisterPacket<HeartbeatPacket>();
+            this.RegisterPacket<InitialPublicKeyPacket>();
         }
 
         /// <summary>
@@ -67,14 +68,21 @@ namespace Communicator.Net
         /// <exception cref="ArgumentException"></exception>
         public IPacket DeserializePacket(string jsonPacket)
         {
-            var info = (IPacket) JsonConvert.DeserializeObject(jsonPacket, typeof(DummyPacket), JsonSettings);
-
-            if(_registeredPacketTypes.TryGetValue(info.PacketType, out Type type))
+            try
             {
-                return (IPacket) DeserializePacket(jsonPacket, type);
-            }
+                var info = (IPacket) JsonConvert.DeserializeObject(jsonPacket, typeof(DummyPacket), JsonSettings);
 
-            throw new ArgumentException($"Unknown packet type '{info.PacketType}' received!");
+                if (_registeredPacketTypes.TryGetValue(info.PacketType, out Type type))
+                {
+                    return (IPacket) DeserializePacket(jsonPacket, type);
+                }
+
+                throw new ArgumentException($"Unknown packet type '{info.PacketType}' received!");
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"Error while decoding json '{jsonPacket}'", ex);
+            }
         }
 
         public T DeserializePacket<T>(string jsonPacket) where T : IPacket

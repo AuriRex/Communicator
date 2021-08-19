@@ -1,5 +1,6 @@
 ﻿using Communicator.Interfaces;
 using Communicator.Net;
+using Communicator.Packets;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -32,10 +33,11 @@ namespace Communicator.Utils
         private static PacketSerializer _packetSerializer;
         public static string HashPacket(IPacket packet)
         {
-            if(_packetSerializer == null)
+            if (_packetSerializer == null)
                 _packetSerializer = new PacketSerializer();
 
             return GetSHA256HashString(_packetSerializer.SerializePacket(packet, packet.GetType()));
         }
+
     }
 }

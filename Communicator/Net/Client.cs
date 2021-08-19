@@ -11,6 +11,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using Communicator.Attributes;
+using Communicator.Net.Encryption;
 
 namespace Communicator.Net
 {
@@ -46,7 +47,23 @@ namespace Communicator.Net
             }
         }
         protected PacketSerializer packetSerializer;
+        protected IEncryptionProvider EncryptionProvider
+        {
+            get
+            {
+                return _encryptionProvider;
+            }
+            set
+            {
+                _encryptionProvider = value;
+                _sender.EncryptionProvider = value;
+                _receiver.EncryptionProvider = value;
+            }
+        } 
 
+        protected IEncryptionProvider AsymmetricEncryptionProvider;
+
+        private IEncryptionProvider _encryptionProvider = new Encryption.EncryptionProvider.None();
         private Action<string> _logAction;
         private Action<string> _errorLogAction;
         private TcpClient _client;
@@ -72,6 +89,11 @@ namespace Communicator.Net
             return (IPEndPoint) _client.Client.RemoteEndPoint;
         }
 
+        internal void SetAsymmetricalEncryptionProvider(IEncryptionProvider encryptionProvider)
+        {
+            AsymmetricEncryptionProvider = encryptionProvider;
+        }
+
         /// <summary>
         /// Drops all packets except with Type <paramref name="type"/>
         /// <para>Use <see cref="AcceptAllPackets"/> to enable all packets again.</para>
@@ -91,6 +113,29 @@ namespace Communicator.Net
             _packetTypeToWaitFor = null;
         }
 
+        internal void SetEncryption(IEncryptionProvider provider)
+        {
+            this.EncryptionProvider = provider;
+        }
+
+#nullable enable
+        internal void SetEncryptionData(byte[]? key, byte[]? iv = null)
+        {
+            SetSenderEncryptionData(key, iv);
+            SetReceiverEncryptionData(key, iv);
+        }
+        protected void SetSenderEncryptionData(byte[]? key, byte[]? iv = null)
+        {
+            _sender.KeyBytes = key ?? new byte[0];
+            _sender.IVBytes = iv ?? new byte[0];
+        }
+        protected void SetReceiverEncryptionData(byte[]? key, byte[]? iv = null)
+        {
+            _receiver.KeyBytes = key ?? new byte[0];
+            _receiver.IVBytes = iv ?? new byte[0];
+        }
+#nullable restore
+
         public Client(TcpClient client = null, PacketSerializer packetSerializer = null, Action<string> logAction = null)
         {
             this.packetSerializer = packetSerializer ?? new PacketSerializer();
@@ -109,6 +154,7 @@ namespace Communicator.Net
             _sender.ThreadFinished += OnSubThreadsExited;
             _sender.DisconnectedEvent += RaiseDisconnectEvent;
         }
+
 
         private void RaiseDisconnectEvent(object sender, ClientDisconnectedEventArgs e)
         {

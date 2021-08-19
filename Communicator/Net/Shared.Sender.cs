@@ -27,6 +27,9 @@ namespace Communicator.Net
                 set => _logAction = value;
             }
             internal Action<string> ErrorAction { get; set; }
+            internal IEncryptionProvider EncryptionProvider { get; set; } = Encryption.EncryptionProvider.NONE;
+            internal byte[] KeyBytes { get; set; } = new byte[0];
+            internal byte[] IVBytes { get; set; } = new byte[0];
             internal int ValidationTimeoutSeconds { get; set; } = 5;
             public int HeartbeatPacketInterval { get; internal set; } = 5;
 
@@ -38,7 +41,7 @@ namespace Communicator.Net
             private ManualResetEvent _shutdownEvent;
             private PacketSerializer _packetSerializer;
             private Action<string> _logAction;
-            private DateTimeOffset _lastHeartbeatPacketSent = DateTimeOffset.UtcNow;
+            private DateTimeOffset _lastPacketSent = DateTimeOffset.UtcNow.AddSeconds(5);
 
             internal void QueuePacket(IPacket packet)
             {
@@ -72,9 +75,16 @@ namespace Communicator.Net
             {
                 string jsonPacket = _packetSerializer.SerializePacket(packet, packet.GetType());
                 if(packet.GetType() != typeof(HeartbeatPacket))
-                    _logAction?.Invoke($"Sending Packet: '{jsonPacket}'");
+                    _logAction?.Invoke($"Sending Packet: '{jsonPacket}' with encryption '{EncryptionProvider.GetType()}'");
                 byte[] data = ASCIIEncoding.UTF8.GetBytes(jsonPacket);
+
+                data = EncryptionProvider.Encrypt(data, KeyBytes, IVBytes);
+
+                byte[] messageLength = BitConverter.GetBytes((Int32) data.Length);
+                _stream.Write(messageLength, 0, 4);
+
                 _stream.Write(data, 0, data.Length);
+                _lastPacketSent = DateTimeOffset.UtcNow;
             }
 
             private void Run()
@@ -85,15 +95,15 @@ namespace Communicator.Net
                     {
                         try
                         {
-                            if(_lastHeartbeatPacketSent.AddSeconds(HeartbeatPacketInterval) < DateTimeOffset.UtcNow)
+                            if(_lastPacketSent.AddSeconds(HeartbeatPacketInterval) < DateTimeOffset.UtcNow)
                             {
                                 SendPacket(new HeartbeatPacket());
-                                _lastHeartbeatPacketSent = DateTimeOffset.UtcNow;
                             }
 
                             IPacket packet;
                             while (_packetQueue.TryDequeue(out packet))
                             {
+                                Thread.Sleep(1);
                                 SendPacket(packet);
                             }
                         }
@@ -109,6 +119,7 @@ namespace Communicator.Net
                         catch(Exception ex)
                         {
                             ErrorAction?.Invoke($"An error has occured (C): {ex.Message}\n{ex.StackTrace}");
+                            _shutdownEvent.Set();
                         }
                     }
                 }

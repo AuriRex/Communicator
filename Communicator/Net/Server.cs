@@ -1,5 +1,6 @@
 ﻿using Communicator.Attributes;
 using Communicator.Interfaces;
+using Communicator.Net.Encryption;
 using Communicator.Net.EventArgs;
 using Communicator.Packets;
 using System;
@@ -53,6 +54,8 @@ namespace Communicator.Net
             _thread.Start();
         }
 
+        EncryptionProvider.A_RSA _rsaEncryptionInstance = new EncryptionProvider.A_RSA();
+
         public virtual void Run()
         {
             TcpListener server = new TcpListener(IPAddress.Any, 11000);
@@ -72,6 +75,14 @@ namespace Communicator.Net
 
                 client.PacketReceivedEvent += OnPacketReceived;
                 client.DisconnectedEvent += OnClientDisconnect;
+
+                client.SendPacket(new InitialPublicKeyPacket() {
+                    PacketData = InitialPublicKeyPacket.KeyData.CreateKeyData(_rsaEncryptionInstance.GetKey(false))
+                });
+
+                client.SetAsymmetricalEncryptionProvider(_rsaEncryptionInstance);
+                /*client.SetEncryption(_rsaEncryptionInstance);
+                client.SetEncryptionData(_rsaEncryptionInstance.GetKey(true), _rsaEncryptionInstance.GetIV());*/
 
                 //client.PacketReceivedEvent += Client_PacketReceivedEvent;
 
@@ -94,41 +105,48 @@ namespace Communicator.Net
             client.DisconnectedEvent -= OnClientDisconnect;
         }
 
+        private IdentificationPacket _identificationPacket;
+
         public void OnPacketReceived(object sender, IPacket incomingPacket)
         {
             Client client = (Client) sender;
 
-            if(_connectingClients.Contains(client) && incomingPacket.GetType() == typeof(IdentificationPacket))
+            if(_connectingClients.Contains(client))
             {
-                // Fully connect or drop client
-                var identification = (IdentificationPacket) incomingPacket;
-                bool disconnect = false;
-                if(_clients.ContainsKey(identification.PacketData.ServerID))
+                switch(incomingPacket)
                 {
-                    ErrorLogAction?.Invoke($"Duplicate connection with ID '{identification.PacketData.ServerID}', dropping connection!");
-                    disconnect = true;
+                    case IdentificationPacket ip:
+                        // Fully connect or drop client
+                        this._identificationPacket = (IdentificationPacket) incomingPacket;
+                        if (_clients.ContainsKey(_identificationPacket.PacketData.ServerID))
+                        {
+                            ErrorLogAction?.Invoke($"Duplicate connection with ID '{_identificationPacket.PacketData.ServerID}', dropping connection!");
+                            client.SetEncryption(Encryption.EncryptionProvider.NONE);
+                            client.SendPacket(new DisconnectPacket());
+                            client.StartDisconnect();
+                            client.Dispose();
+                            return;
+                        }
+                        break;
+                    case ConfirmationPacket cp:
+                        LogAction?.Invoke($"Client with ID '{_identificationPacket.PacketData.ServerID}' connected!");
+                        _clients.Add(_identificationPacket.PacketData.ServerID, client);
+                        _connectingClients.Remove(client);
+                        client.AcceptAllPackets();
+                        ClientConnectedEvent?.Invoke(this, new ClientConnectedEventArgs()
+                        {
+                            ServerID = _identificationPacket.PacketData.ServerID,
+                            Client = client,
+                            GameName = _identificationPacket.PacketData.GameIdentification
+                        });
+                        
+                        var symmetricalKey = _rsaEncryptionInstance.Decrypt(_identificationPacket.PacketData.GetKey(), _rsaEncryptionInstance.GetKey(true), new byte[0]);
+                        var symmetricalIV = _rsaEncryptionInstance.Decrypt(_identificationPacket.PacketData.GetIV(), _rsaEncryptionInstance.GetKey(true), new byte[0]);
+                        client.SetEncryption(new Encryption.EncryptionProvider.S_AES());
+                        client.SetEncryptionData(symmetricalKey, symmetricalIV);
+                        return;
                 }
-                else
-                {
-                    LogAction?.Invoke($"Client with ID '{identification.PacketData.ServerID}' connected!");
-                    _clients.Add(identification.PacketData.ServerID, client);
-                    client.AcceptAllPackets();
-                    ClientConnectedEvent?.Invoke(this, new ClientConnectedEventArgs() {
-                        ServerID = identification.PacketData.ServerID,
-                        Client = client,
-                        GameName = identification.PacketData.GameName
-                    });
-                }
-
-                _connectingClients.Remove(client);
-
-                if(disconnect)
-                {
-                    client.SendPacket(new DisconnectPacket());
-                    client.StartDisconnect();
-                    client.Dispose();
-                    return;
-                }
+                
             }
 
             if (!incomingPacket.GetType().CustomAttributes.Any(x => x.AttributeType == typeof(NoConfirmationAttribute)))
@@ -151,89 +169,6 @@ namespace Communicator.Net
                 client.StartDisconnect();
                 //client.Dispose();
                 LogAction?.Invoke($"Closing connection with client '{kvp.Key}'");
-            }
-        }
-    }
-
-    public class TestServer : Server 
-    {
-        
-
-        public TestServer()
-        {
-            Client testClient = new Client(packetSerializer: PacketSerializer, logAction: (string s) => { Console.WriteLine($"[Client] {s}"); });
-
-            testClient.PacketReceivedEvent += (object sender, Interfaces.IPacket e) => {
-                Console.WriteLine($"[CLIENT] Received Packet '{e.GetType()}'");
-                switch (e)
-                {
-                    case GenericEventPacket ge:
-                        Console.WriteLine($"{ge.PacketData.Type} -> {ge.PacketData.Data}");
-                        break;
-                    case ConfirmationPacket ge:
-                        Console.WriteLine($"{ge.PacketData.Hash}");
-                        break;
-                }
-            };
-
-            //Thread.Sleep(250);
-            while (true)
-            {
-                Console.WriteLine("[Client] Sending packet ...");
-                testClient.SendPacket(new ConfirmationPacket() {
-                    PacketData = new ConfirmationData
-                    {
-                        Hash = "MyCoolHashFromTheClient"
-                    }
-                });
-                Thread.Sleep(1000);
-            }
-        }
-
-        public override void Run()
-        {
-            TcpListener server = new TcpListener(IPAddress.Any, 11000);
-            server.Start();
-
-            int count = 0;
-            LogAction = (string s) => { Console.WriteLine($"[Server] {s}"); };
-
-            while (true)
-            {
-                Client client = new Client(server.AcceptTcpClient(), PacketSerializer, LogAction);
-
-                Console.WriteLine("[Server] Client connected!");
-
-                client.PacketReceivedEvent += Client_PacketReceivedEvent;
-
-                while (true)
-                {
-                    Console.WriteLine("[Server] sending packet ...");
-                    client.SendPacket(new GenericEventPacket()
-                    {
-                        PacketData = new GenericEventPacket.EventData()
-                        {
-                            Type = "Chat",
-                            Data = $"Num: {count}"
-                        }
-                    });
-                    count++;
-                    Thread.Sleep(1000);
-                }
-            }
-        }
-
-        private void Client_PacketReceivedEvent(object sender, Interfaces.IPacket e)
-        {
-            Console.WriteLine($"[SERVER] Received Packet '{e.GetType()}'");
-            switch(e)
-            {
-                case GenericEventPacket ge:
-                    Console.WriteLine($"{ge.PacketData.Type} -> {ge.PacketData.Data}");
-                    break;
-                case ConfirmationPacket ge:
-                    Console.WriteLine($"{ge.PacketData.Hash}");
-                    break;
             }
         }
     }
