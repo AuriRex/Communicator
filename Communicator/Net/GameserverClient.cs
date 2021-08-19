@@ -4,6 +4,8 @@ using System.Text;
 using System.Net.Sockets;
 using Communicator.Interfaces;
 using Communicator.Packets;
+using System.Linq;
+using Communicator.Attributes;
 
 namespace Communicator.Net
 {
@@ -37,6 +39,8 @@ namespace Communicator.Net
         {
             if (!Connected)
             {
+                if (incomingPacket.GetType() != typeof(ConfirmationPacket)) return;
+
                 var confirmationPacket = (ConfirmationPacket) incomingPacket;
 
                 string outgoingPacketHash = Utils.Utils.HashPacket(_identificationPacket);
@@ -52,7 +56,7 @@ namespace Communicator.Net
                 Connected = true;
             }
 
-            if (incomingPacket.GetType() != typeof(ConfirmationPacket))
+            if (!incomingPacket.GetType().CustomAttributes.Any(x => x.AttributeType == typeof(NoConfirmationAttribute)))
             {
                 this.SendPacket(new ConfirmationPacket()
                 {

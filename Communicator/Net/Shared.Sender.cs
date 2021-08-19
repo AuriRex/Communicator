@@ -28,6 +28,7 @@ namespace Communicator.Net
             }
             internal Action<string> ErrorAction { get; set; }
             internal int ValidationTimeoutSeconds { get; set; } = 5;
+            public int HeartbeatPacketInterval { get; internal set; } = 5;
 
             private NetworkStream _stream;
             private Thread _thread;
@@ -84,7 +85,7 @@ namespace Communicator.Net
                     {
                         try
                         {
-                            if(_lastHeartbeatPacketSent.AddSeconds(5) < DateTimeOffset.UtcNow)
+                            if(_lastHeartbeatPacketSent.AddSeconds(HeartbeatPacketInterval) < DateTimeOffset.UtcNow)
                             {
                                 SendPacket(new HeartbeatPacket());
                                 _lastHeartbeatPacketSent = DateTimeOffset.UtcNow;

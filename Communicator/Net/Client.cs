@@ -5,10 +5,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Communicator.Attributes;
 
 namespace Communicator.Net
 {
@@ -33,7 +35,7 @@ namespace Communicator.Net
                 _sender.LogAction = value;
             }
         }
-        internal Action<string> ErrorAction
+        public Action<string> ErrorAction
         {
             get => _errorLogAction;
             set
@@ -149,12 +151,12 @@ namespace Communicator.Net
                     return;
             }
 
-            if (_packetTypeToWaitFor != null && packet.GetType() != _packetTypeToWaitFor)
+            if (!packet.GetType().CustomAttributes.Any(x => x.AttributeType == typeof(UnignorableAttribute)) && (_packetTypeToWaitFor != null && packet.GetType() != _packetTypeToWaitFor))
             {
                 IgnoredPacketReceivedEvent?.Invoke(this, packet);
                 return;
             }
-                
+            
             PacketReceivedEvent?.Invoke(this, packet);
         }
 

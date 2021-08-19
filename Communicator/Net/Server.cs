@@ -1,4 +1,5 @@
-﻿using Communicator.Interfaces;
+﻿using Communicator.Attributes;
+using Communicator.Interfaces;
 using Communicator.Net.EventArgs;
 using Communicator.Packets;
 using System;
@@ -70,6 +71,7 @@ namespace Communicator.Net
                 client.OnlyAcceptPacketsOfType(typeof(IdentificationPacket));
 
                 client.PacketReceivedEvent += OnPacketReceived;
+                client.DisconnectedEvent += OnClientDisconnect;
 
                 //client.PacketReceivedEvent += Client_PacketReceivedEvent;
 
@@ -78,14 +80,28 @@ namespace Communicator.Net
             }
         }
 
-        public void OnPacketReceived(object sender, IPacket incommingPacket)
+        private void OnClientDisconnect(object sender, ClientDisconnectedEventArgs e)
         {
             Client client = (Client) sender;
 
-            if(_connectingClients.Contains(client) && incommingPacket.GetType() == typeof(IdentificationPacket))
+            if (!_clients.Any(x => x.Value == client)) return;
+
+            string serverId = _clients.First(x => x.Value == client).Key;
+
+            _clients.Remove(serverId);
+
+            client.PacketReceivedEvent -= OnPacketReceived;
+            client.DisconnectedEvent -= OnClientDisconnect;
+        }
+
+        public void OnPacketReceived(object sender, IPacket incomingPacket)
+        {
+            Client client = (Client) sender;
+
+            if(_connectingClients.Contains(client) && incomingPacket.GetType() == typeof(IdentificationPacket))
             {
                 // Fully connect or drop client
-                var identification = (IdentificationPacket) incommingPacket;
+                var identification = (IdentificationPacket) incomingPacket;
                 bool disconnect = false;
                 if(_clients.ContainsKey(identification.PacketData.ServerID))
                 {
@@ -108,19 +124,20 @@ namespace Communicator.Net
 
                 if(disconnect)
                 {
+                    client.SendPacket(new DisconnectPacket());
                     client.StartDisconnect();
                     client.Dispose();
                     return;
                 }
             }
 
-            if (incommingPacket.GetType() != typeof(ConfirmationPacket))
+            if (!incomingPacket.GetType().CustomAttributes.Any(x => x.AttributeType == typeof(NoConfirmationAttribute)))
             {
                 client.SendPacket(new ConfirmationPacket()
                 {
                     PacketData = new ConfirmationData()
                     {
-                        Hash = Utils.Utils.HashPacket(incommingPacket)
+                        Hash = Utils.Utils.HashPacket(incomingPacket)
                     }
                 });
             }
