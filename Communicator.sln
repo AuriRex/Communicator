@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31112.23
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Communicator", "Communicator\Communicator.csproj", "{27730F0F-CDC1-4533-82A2-1BED91052659}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetFramework45Test", "NetFramework45Test\NetFramework45Test.csproj", "{758C5BD5-2526-46C7-8BD5-C20CAC4B6A08}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{27730F0F-CDC1-4533-82A2-1BED91052659}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{27730F0F-CDC1-4533-82A2-1BED91052659}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{27730F0F-CDC1-4533-82A2-1BED91052659}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{27730F0F-CDC1-4533-82A2-1BED91052659}.Release|Any CPU.Build.0 = Release|Any CPU
+		{758C5BD5-2526-46C7-8BD5-C20CAC4B6A08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{758C5BD5-2526-46C7-8BD5-C20CAC4B6A08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{758C5BD5-2526-46C7-8BD5-C20CAC4B6A08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{758C5BD5-2526-46C7-8BD5-C20CAC4B6A08}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FE4B9AA4-3885-4F75-8A9D-63655B53A33E}
+	EndGlobalSection
+EndGlobal
