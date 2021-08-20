@@ -7,6 +7,7 @@ using Communicator.Packets;
 using System.Linq;
 using Communicator.Attributes;
 using Communicator.Net.Encryption;
+using System.Security.Cryptography;
 
 namespace Communicator.Net
 {
@@ -17,13 +18,24 @@ namespace Communicator.Net
 
         private string _serverId;
         private string _gameName;
+        private string _passwordHash;
         private IdentificationPacket _identificationPacket;
         private EncryptionProvider.S_AES _aesEncryptionInstance = new EncryptionProvider.S_AES();
 
-        public GameserverClient(string hostname, int port, string serverId, string gameName, Action<string> logAction = null) : base(new TcpClient(hostname, port), PacketSerializer, logAction)
-        {
+        public GameserverClient(string hostname, int port, string serverId, string gameName, string password, string base64salt, Action<string> logAction = null) : base(new TcpClient(hostname, port), PacketSerializer, logAction)
+        {            
+            if(string.IsNullOrEmpty(serverId) || string.IsNullOrEmpty(gameName) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(base64salt))
+            {
+                throw new ArgumentException("Arguments may not be null!");
+            }
+
             _serverId = serverId;
             _gameName = gameName;
+            
+            _passwordHash = Utils.Utils.ToHexString(Utils.Utils.HashPassword(password, Convert.FromBase64String(base64salt)));
+
+            Console.WriteLine(_passwordHash);
+
             this.OnlyAcceptPacketsOfType(typeof(ConfirmationPacket));
 
             SetAsymmetricalEncryptionProvider(new EncryptionProvider.A_RSA());
@@ -46,9 +58,15 @@ namespace Communicator.Net
 
                         var encryptedKey = AsymmetricEncryptionProvider.Encrypt(_aesEncryptionInstance.GetKey(false), publicKey, new byte[0]);
                         var encryptedIV = AsymmetricEncryptionProvider.Encrypt(_aesEncryptionInstance.GetIV(), publicKey, new byte[0]);
+                        Utils.Utils.SplitMidPoint<byte>(Encoding.UTF8.GetBytes(_passwordHash), out byte[] pwBytesFirst, out byte[] pwBytesSecond);
+
+                        Console.WriteLine($"{_aesEncryptionInstance.GetIV().Length} {pwBytesFirst.Length}");
+
+                        var encryptedPWHashFirst = AsymmetricEncryptionProvider.Encrypt(pwBytesFirst, publicKey, new byte[0]);
+                        var encryptedPWHashSecond = AsymmetricEncryptionProvider.Encrypt(pwBytesSecond, publicKey, new byte[0]);
                         _identificationPacket = new IdentificationPacket()
                         {
-                            PacketData = IdentificationData.CreateKeyData(_serverId, _gameName, encryptedKey, encryptedIV)
+                            PacketData = IdentificationData.CreateKeyData(_serverId, _gameName, encryptedKey, encryptedIV, encryptedPWHashFirst, encryptedPWHashSecond)
                         };
 
                         this.SendPacket(_identificationPacket);

@@ -21,11 +21,6 @@ namespace Communicator.Net
         public virtual event EventHandler<IPacket> PacketReceivedEvent;
         public virtual event EventHandler<IPacket> IgnoredPacketReceivedEvent;
         public virtual event EventHandler<ClientDisconnectedEventArgs> DisconnectedEvent;
-        public int BufferSize
-        {
-            get => _receiver.BufferSize;
-            set => _receiver.BufferSize = value;
-        }
         public Action<string> LogAction
         {
             get => _logAction;

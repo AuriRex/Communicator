@@ -50,7 +50,11 @@ namespace NetFramework45Test
             Console.WriteLine("Press any key to continue ...");
             Console.ReadKey();*/
 
-            GameserverClient cl = new GameserverClient("localhost", 11000, "aPersistentServerId", "terraria", (s) => { Console.WriteLine($"[Info ] {s}"); } );
+            var salt = Convert.ToBase64String(Communicator.Utils.Utils.GenerateSalt());
+
+            Console.WriteLine(salt);
+
+            GameserverClient cl = new GameserverClient("localhost", 11000, "aPersistentServerId", "terraria", "password123", salt, (s) => { Console.WriteLine($"[Info ] {s}"); } );
             cl.RegisterPacket<MyCoolCustomEventPacket>();
             cl.ErrorAction = (s) => { Console.WriteLine($"[Error] {s}"); };
             cl.PacketReceivedEvent += Cl_PacketReceivedEvent;

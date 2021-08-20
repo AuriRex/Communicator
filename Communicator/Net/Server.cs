@@ -121,10 +121,7 @@ namespace Communicator.Net
                         if (_clients.ContainsKey(_identificationPacket.PacketData.ServerID))
                         {
                             ErrorLogAction?.Invoke($"Duplicate connection with ID '{_identificationPacket.PacketData.ServerID}', dropping connection!");
-                            client.SetEncryption(Encryption.EncryptionProvider.NONE);
-                            client.SendPacket(new DisconnectPacket());
-                            client.StartDisconnect();
-                            client.Dispose();
+                            DisconnectClient(client);
                             return;
                         }
                         break;
@@ -142,6 +139,17 @@ namespace Communicator.Net
                         
                         var symmetricalKey = _rsaEncryptionInstance.Decrypt(_identificationPacket.PacketData.GetKey(), _rsaEncryptionInstance.GetKey(true), new byte[0]);
                         var symmetricalIV = _rsaEncryptionInstance.Decrypt(_identificationPacket.PacketData.GetIV(), _rsaEncryptionInstance.GetKey(true), new byte[0]);
+                        var passwordHashFirst = _rsaEncryptionInstance.Decrypt(Convert.FromBase64String(_identificationPacket.PacketData.Base64PasswordHashFirst), _rsaEncryptionInstance.GetKey(true), new byte[0]);
+                        var passwordHashSecond = _rsaEncryptionInstance.Decrypt(Convert.FromBase64String(_identificationPacket.PacketData.Base64PasswordHashSecond), _rsaEncryptionInstance.GetKey(true), new byte[0]);
+                        var passwordHash = Encoding.UTF8.GetString(passwordHashFirst.Concat(passwordHashSecond).ToArray());
+
+                        if (!TryAuthenticateGameserver(passwordHash, _identificationPacket.PacketData.ServerID, _identificationPacket.PacketData.GameIdentification))
+                        {
+                            ErrorLogAction?.Invoke($"Invalid password for server with ID '{_identificationPacket.PacketData.ServerID}', dropping connection!");
+                            DisconnectClient(client);
+                            return;
+                        }
+
                         client.SetEncryption(new Encryption.EncryptionProvider.S_AES());
                         client.SetEncryptionData(symmetricalKey, symmetricalIV);
                         return;
@@ -159,6 +167,21 @@ namespace Communicator.Net
                     }
                 });
             }
+        }
+
+        private void DisconnectClient(Client client)
+        {
+            client.SetEncryption(Encryption.EncryptionProvider.NONE);
+            client.SendPacket(new DisconnectPacket());
+            client.StartDisconnect();
+            client.Dispose();
+        }
+
+        private bool TryAuthenticateGameserver(string passwordHash, string serverID, string gameIdentification)
+        {
+            // TODO
+            ErrorLogAction?.Invoke($"TODO, IMPLEMENT THIS: {nameof(TryAuthenticateGameserver)}");
+            return true;
         }
 
         public void Dispose()

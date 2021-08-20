@@ -24,7 +24,6 @@ namespace Communicator.Net
             internal IEncryptionProvider EncryptionProvider { get; set; } = Encryption.EncryptionProvider.NONE;
             internal byte[] KeyBytes { get; set; } = new byte[0];
             internal byte[] IVBytes { get; set; } = new byte[0];
-            internal int BufferSize { get; set; } = 2048;
 
             internal event EventHandler<IPacket> PacketReceived;
             internal event Action ThreadFinished;

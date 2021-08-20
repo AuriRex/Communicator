@@ -2,6 +2,8 @@
 using Communicator.Net;
 using Communicator.Packets;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -18,16 +20,38 @@ namespace Communicator.Utils
 
         public static string GetSHA256HashString(string inputString)
         {
+            return ToHexString(GetSHA256Hash(inputString));
+        }
+
+        public static byte[] GenerateSalt(int length = 8)
+        {
+            byte[] salt = new byte[length];
+            using (RNGCryptoServiceProvider rngCsp = new RNGCryptoServiceProvider())
+            {
+                rngCsp.GetBytes(salt);
+            }
+            return salt;
+        }
+
+        public static byte[] HashPassword(string password, byte[] salt)
+        {
+            using (SHA512 shaM = new SHA512Managed())
+            {
+                byte[] data = Encoding.Unicode.GetBytes(password);
+
+                data = data.Concat(salt).ToArray();
+
+                return shaM.ComputeHash(data);
+            }
+        }
+
+        public static string ToHexString(byte[] data)
+        {
             StringBuilder sb = new StringBuilder();
-            foreach (byte b in GetSHA256Hash(inputString))
+            foreach (byte b in data)
                 sb.Append(b.ToString("X2"));
 
             return sb.ToString().ToUpper();
-        }
-
-        public static string GenerateServerID()
-        {
-            return GetSHA256HashString($"{DateTimeOffset.UtcNow}{System.Net.Dns.GetHostName()}");
         }
 
         private static PacketSerializer _packetSerializer;
@@ -37,6 +61,18 @@ namespace Communicator.Utils
                 _packetSerializer = new PacketSerializer();
 
             return GetSHA256HashString(_packetSerializer.SerializePacket(packet, packet.GetType()));
+        }
+
+        // https://stackoverflow.com/a/1841276
+        public static void Split<T>(T[] array, int index, out T[] first, out T[] second)
+        {
+            first = array.Take(index).ToArray();
+            second = array.Skip(index).ToArray();
+        }
+
+        public static void SplitMidPoint<T>(T[] array, out T[] first, out T[] second)
+        {
+            Split(array, array.Length / 2, out first, out second);
         }
 
     }
