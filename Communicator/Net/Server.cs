@@ -15,8 +15,11 @@ namespace Communicator.Net
 {
     public partial class Server : IDisposable
     {
+        public delegate void ClientConnectedEventHandler(ClientConnectedEventArgs args);
+        public event ClientConnectedEventHandler ClientConnectedEvent;
+
         public PacketSerializer PacketSerializer { get; set; } = new PacketSerializer();
-        public event EventHandler<ClientConnectedEventArgs> ClientConnectedEvent;
+        //public event EventHandler<ClientConnectedEventArgs> ClientConnectedEvent;
         public Action<string> LogAction { get; set; }
         public Action<string> ErrorLogAction { get; set; }
 
@@ -54,7 +57,7 @@ namespace Communicator.Net
             _thread.Start();
         }
 
-        EncryptionProvider.A_RSA _rsaEncryptionInstance = new EncryptionProvider.A_RSA();
+        //EncryptionProvider.A_RSA _rsaEncryptionInstance = new EncryptionProvider.A_RSA();
 
         public virtual void Run()
         {
@@ -77,10 +80,10 @@ namespace Communicator.Net
                 client.DisconnectedEvent += OnClientDisconnect;
 
                 client.SendPacket(new InitialPublicKeyPacket() {
-                    PacketData = InitialPublicKeyPacket.KeyData.CreateKeyData(_rsaEncryptionInstance.GetKey(false))
+                    PacketData = InitialPublicKeyPacket.KeyData.CreateKeyData(client.AsymmetricEncryptionProvider.GetKey(false))
                 });
 
-                client.SetAsymmetricalEncryptionProvider(_rsaEncryptionInstance);
+                //client.SetAsymmetricalEncryptionProvider(_rsaEncryptionInstance);
                 /*client.SetEncryption(_rsaEncryptionInstance);
                 client.SetEncryptionData(_rsaEncryptionInstance.GetKey(true), _rsaEncryptionInstance.GetIV());*/
 
@@ -105,53 +108,54 @@ namespace Communicator.Net
             client.DisconnectedEvent -= OnClientDisconnect;
         }
 
-        private IdentificationPacket _identificationPacket;
-
         public void OnPacketReceived(object sender, IPacket incomingPacket)
         {
             Client client = (Client) sender;
-
-            if(_connectingClients.Contains(client))
+            IdentificationPacket identificationPacket;
+            if (_connectingClients.Contains(client))
             {
                 switch(incomingPacket)
                 {
                     case IdentificationPacket ip:
                         // Fully connect or drop client
-                        this._identificationPacket = (IdentificationPacket) incomingPacket;
-                        if (_clients.ContainsKey(_identificationPacket.PacketData.ServerID))
+                        identificationPacket = (IdentificationPacket) incomingPacket;
+                        if (_clients.ContainsKey(identificationPacket.PacketData.ServerID))
                         {
-                            ErrorLogAction?.Invoke($"Duplicate connection with ID '{_identificationPacket.PacketData.ServerID}', dropping connection!");
+                            ErrorLogAction?.Invoke($"Duplicate connection with ID '{identificationPacket.PacketData.ServerID}', dropping connection!");
                             DisconnectClient(client);
                             return;
                         }
                         break;
                     case ConfirmationPacket cp:
-                        LogAction?.Invoke($"Client with ID '{_identificationPacket.PacketData.ServerID}' connected!");
-                        _clients.Add(_identificationPacket.PacketData.ServerID, client);
+                        identificationPacket = client.InitialIdentificationPacket;
+                        _clients.Add(client.InitialIdentificationPacket.PacketData.ServerID, client);
                         _connectingClients.Remove(client);
                         client.AcceptAllPackets();
-                        ClientConnectedEvent?.Invoke(this, new ClientConnectedEventArgs()
+                        ClientConnectedEvent?.Invoke(new ClientConnectedEventArgs()
                         {
-                            ServerID = _identificationPacket.PacketData.ServerID,
+                            ServerID = identificationPacket.PacketData.ServerID,
                             Client = client,
-                            GameName = _identificationPacket.PacketData.GameIdentification
+                            GameName = identificationPacket.PacketData.GameIdentification
                         });
-                        
-                        var symmetricalKey = _rsaEncryptionInstance.Decrypt(_identificationPacket.PacketData.GetKey(), _rsaEncryptionInstance.GetKey(true), new byte[0]);
-                        var symmetricalIV = _rsaEncryptionInstance.Decrypt(_identificationPacket.PacketData.GetIV(), _rsaEncryptionInstance.GetKey(true), new byte[0]);
-                        var passwordHashFirst = _rsaEncryptionInstance.Decrypt(Convert.FromBase64String(_identificationPacket.PacketData.Base64PasswordHashFirst), _rsaEncryptionInstance.GetKey(true), new byte[0]);
-                        var passwordHashSecond = _rsaEncryptionInstance.Decrypt(Convert.FromBase64String(_identificationPacket.PacketData.Base64PasswordHashSecond), _rsaEncryptionInstance.GetKey(true), new byte[0]);
+
+                        var clientEncryption = client.AsymmetricEncryptionProvider;
+
+                        var symmetricalKey = clientEncryption.Decrypt(identificationPacket.PacketData.GetKey(), clientEncryption.GetKey(true), new byte[0]);
+                        var symmetricalIV = clientEncryption.Decrypt(identificationPacket.PacketData.GetIV(), clientEncryption.GetKey(true), new byte[0]);
+                        var passwordHashFirst = clientEncryption.Decrypt(Convert.FromBase64String(identificationPacket.PacketData.Base64PasswordHashFirst), clientEncryption.GetKey(true), new byte[0]);
+                        var passwordHashSecond = clientEncryption.Decrypt(Convert.FromBase64String(identificationPacket.PacketData.Base64PasswordHashSecond), clientEncryption.GetKey(true), new byte[0]);
                         var passwordHash = Encoding.UTF8.GetString(passwordHashFirst.Concat(passwordHashSecond).ToArray());
 
-                        if (!TryAuthenticateGameserver(passwordHash, _identificationPacket.PacketData.ServerID, _identificationPacket.PacketData.GameIdentification))
+                        if (!TryAuthenticateGameserver(passwordHash, identificationPacket.PacketData.ServerID, identificationPacket.PacketData.GameIdentification))
                         {
-                            ErrorLogAction?.Invoke($"Invalid password for server with ID '{_identificationPacket.PacketData.ServerID}', dropping connection!");
+                            ErrorLogAction?.Invoke($"Invalid password for server with ID '{identificationPacket.PacketData.ServerID}', dropping connection!");
                             DisconnectClient(client);
                             return;
                         }
 
                         client.SetEncryption(new Encryption.EncryptionProvider.S_AES());
                         client.SetEncryptionData(symmetricalKey, symmetricalIV);
+                        LogAction?.Invoke($"Client with ID '{identificationPacket.PacketData.ServerID}' '{identificationPacket.PacketData.GameIdentification}' connected!");
                         return;
                 }
                 
@@ -180,6 +184,8 @@ namespace Communicator.Net
         private bool TryAuthenticateGameserver(string passwordHash, string serverID, string gameIdentification)
         {
             // TODO
+
+
             ErrorLogAction?.Invoke($"TODO, IMPLEMENT THIS: {nameof(TryAuthenticateGameserver)}");
             return true;
         }

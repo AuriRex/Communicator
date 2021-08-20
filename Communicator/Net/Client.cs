@@ -41,6 +41,9 @@ namespace Communicator.Net
                 _sender.ErrorAction = value;
             }
         }
+
+        internal IdentificationPacket InitialIdentificationPacket { get; set; } = null;
+
         protected PacketSerializer packetSerializer;
         protected IEncryptionProvider EncryptionProvider
         {
@@ -56,7 +59,8 @@ namespace Communicator.Net
             }
         } 
 
-        protected IEncryptionProvider AsymmetricEncryptionProvider;
+        // Every client gets their own
+        internal IEncryptionProvider AsymmetricEncryptionProvider { get; private set; } = new EncryptionProvider.A_RSA();
 
         private IEncryptionProvider _encryptionProvider = new Encryption.EncryptionProvider.None();
         private Action<string> _logAction;
@@ -174,6 +178,7 @@ namespace Communicator.Net
                     IsIntentional = true,
                     Packet = null
                 });
+                Dispose();
             }
         }
 
@@ -181,6 +186,10 @@ namespace Communicator.Net
         {
             switch(packet)
             {
+                case IdentificationPacket ip:
+                    if(InitialIdentificationPacket == null)
+                        InitialIdentificationPacket = ip;
+                    break;
                 case DisconnectPacket dp:
                     StartDisconnect();
                     return;
