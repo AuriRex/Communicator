@@ -1,10 +1,7 @@
 ﻿using Communicator.Interfaces;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Communicator.Net.Encryption
 {
@@ -13,6 +10,7 @@ namespace Communicator.Net.Encryption
         public class A_RSA : IEncryptionProvider
         {
             RSACryptoServiceProvider rsa;
+
             public A_RSA()
             {
                 rsa = new RSACryptoServiceProvider();
@@ -24,15 +22,13 @@ namespace Communicator.Net.Encryption
                 if (rsa.PublicOnly)
                 {
                     throw new ArgumentException("Tried to decrypt a message without a private key!");
-                    //return cipherText;
                 }
                 return rsa.Decrypt(cipherText, true);
             }
+
             public byte[] Encrypt(byte[] plainText, byte[] publicKey, byte[] iv)
             {
-                string s = Encoding.Unicode.GetString(publicKey);
-                //Console.WriteLine($"XML: {s}");
-                rsa.FromXmlString(s);
+                rsa.FromXmlString(Encoding.Unicode.GetString(publicKey));
                 return rsa.Encrypt(plainText, true);
             }
 

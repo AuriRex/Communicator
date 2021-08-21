@@ -1,7 +1,5 @@
 ﻿using Communicator.Interfaces;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -109,7 +107,6 @@ namespace Communicator.Net
                 {
                     _logAction?.Invoke("Receiver closing ...");
                     _shutdownEvent.Set();
-                    //_stream.Close();
                     HasExited = true;
                     ThreadFinished?.Invoke();
                 }

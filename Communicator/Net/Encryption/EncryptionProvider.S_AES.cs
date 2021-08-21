@@ -1,11 +1,6 @@
 ﻿using Communicator.Interfaces;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Communicator.Net.Encryption
 {
@@ -14,6 +9,7 @@ namespace Communicator.Net.Encryption
         public class S_AES : IEncryptionProvider
         {
             private Aes aes;
+
             public S_AES()
             {
                 aes = Aes.Create();
@@ -67,6 +63,7 @@ namespace Communicator.Net.Encryption
             {
                 return aes.IV;
             }
+
             public byte[] GetKey(bool includePrivateParametersIfAvailable)
             {
                 return aes.Key;

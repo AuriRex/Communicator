@@ -1,9 +1,4 @@
 ﻿using Communicator.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Communicator.Net.Encryption
 {
@@ -17,6 +12,7 @@ namespace Communicator.Net.Encryption
             {
                 return cipherText;
             }
+
             public byte[] Encrypt(byte[] plainText, byte[] key, byte[] iv)
             {
                 return plainText;
@@ -26,6 +22,7 @@ namespace Communicator.Net.Encryption
             {
                 return new byte[0];
             }
+
             public byte[] GetKey(bool includePrivateParametersIfAvailable)
             {
                 return new byte[0];

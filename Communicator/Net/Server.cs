@@ -31,7 +31,7 @@ namespace Communicator.Net
         public IAuthentificationService AuthentificationService { get; set; } = new Auth.AuthService.None();
         // TODO: Use a clients GameIdentification to load the right PacketSerializer
         public PacketSerializer PacketSerializer { get; set; } = new PacketSerializer();
-        //public event EventHandler<ClientConnectedEventArgs> ClientConnectedEvent;
+
         public Action<string> LogAction { get; set; }
         public Action<string> ErrorLogAction { get; set; }
 
@@ -97,13 +97,6 @@ namespace Communicator.Net
                     PacketData = InitialPublicKeyPacket.KeyData.CreateKeyData(client.AsymmetricEncryptionProvider.GetKey(false))
                 });
 
-                //client.SetAsymmetricalEncryptionProvider(_rsaEncryptionInstance);
-                /*client.SetEncryption(_rsaEncryptionInstance);
-                client.SetEncryptionData(_rsaEncryptionInstance.GetKey(true), _rsaEncryptionInstance.GetIV());*/
-
-                //client.PacketReceivedEvent += Client_PacketReceivedEvent;
-
-                //_clients.Add(client);
                 _connectingClients.Add(client);
             }
 

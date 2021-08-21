@@ -1,17 +1,13 @@
-﻿using Communicator.Interfaces;
+﻿using Communicator.Attributes;
+using Communicator.Interfaces;
+using Communicator.Net.Encryption;
 using Communicator.Net.EventArgs;
 using Communicator.Packets;
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
-using Communicator.Attributes;
-using Communicator.Net.Encryption;
 
 namespace Communicator.Net
 {

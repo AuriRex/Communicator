@@ -3,17 +3,13 @@ using Communicator.Packets;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Communicator.Net
 {
     public class PacketSerializer
     {
-        //public JsonSerializerOptions JsonOptions { get; set; } = new JsonSerializerOptions { WriteIndented = false };
         internal JsonSerializerSettings JsonSettings { get; set; } = new JsonSerializerSettings { Formatting = Formatting.None };
 
-        //private List<(string name, Type type)> _registeredPacketTypes = new List<(string name, Type type)>();
         private Dictionary<string, Type> _registeredPacketTypes = new Dictionary<string, Type>();
 
         public PacketSerializer()

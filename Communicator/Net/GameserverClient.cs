@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Net.Sockets;
+﻿using Communicator.Attributes;
 using Communicator.Interfaces;
-using Communicator.Packets;
-using System.Linq;
-using Communicator.Attributes;
 using Communicator.Net.Encryption;
-using System.Security.Cryptography;
+using Communicator.Packets;
+using System;
+using System.Linq;
+using System.Net.Sockets;
+using System.Text;
 
 namespace Communicator.Net
 {

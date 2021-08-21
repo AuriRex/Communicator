@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Communicator.Net.EventArgs
+﻿namespace Communicator.Net.EventArgs
 {
     public class ClientConnectedEventArgs
     {
