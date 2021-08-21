@@ -17,10 +17,13 @@ namespace Communicator.Net
 {
     public class Client : IDisposable
     {
+        public delegate void ClientConnectedEventHandler(ClientConnectedEventArgs args);
+        public delegate void ClientDisconnectedEventHandler(ClientDisconnectedEventArgs args);
+
         // Consumers register to receive data.
         public virtual event EventHandler<IPacket> PacketReceivedEvent;
         public virtual event EventHandler<IPacket> IgnoredPacketReceivedEvent;
-        public virtual event EventHandler<ClientDisconnectedEventArgs> DisconnectedEvent;
+        public virtual event ClientDisconnectedEventHandler DisconnectedEvent;
         public Action<string> LogAction
         {
             get => _logAction;
@@ -72,6 +75,7 @@ namespace Communicator.Net
         private ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
         private Type _packetTypeToWaitFor = null;
         private bool _disconnectEventRaised = false;
+        private bool _intentionalDisconnect = false;
 
         public void SendPacket(IPacket packet)
         {
@@ -159,12 +163,15 @@ namespace Communicator.Net
         {
             if (_disconnectEventRaised) return;
             _disconnectEventRaised = true;
-            DisconnectedEvent?.Invoke(this, e);
+            e.IsIntentional = _intentionalDisconnect;
+            e.Client = this;
+            DisconnectedEvent?.Invoke(e);
         }
 
         internal void StartDisconnect()
         {
             _shutdownEvent.Set();
+            _intentionalDisconnect = true;
         }
 
         internal void OnSubThreadsExited()
@@ -222,6 +229,10 @@ namespace Communicator.Net
             {
                 _sender.ThreadFinished -= OnSubThreadsExited;
             }
+
+            this.PacketReceivedEvent = null;
+            this.IgnoredPacketReceivedEvent = null;
+            this.DisconnectedEvent = null;
         }
     }
 }

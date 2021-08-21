@@ -10,14 +10,26 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using static Communicator.Net.Client;
 
 namespace Communicator.Net
 {
     public partial class Server : IDisposable
     {
-        public delegate void ClientConnectedEventHandler(ClientConnectedEventArgs args);
+        /// <summary>
+        /// Called every time a client has authenticated and is ready to communicate over the network.
+        /// </summary>
         public event ClientConnectedEventHandler ClientConnectedEvent;
+        /// <summary>
+        /// Called every time a client disconnects.
+        /// </summary>
+        public event ClientDisconnectedEventHandler ClientDisconnectedEvent;
 
+        /// <summary>
+        /// Used to authentificate connecting clients.
+        /// </summary>
+        public IAuthentificationService AuthentificationService { get; set; } = new Auth.AuthService.None();
+        // TODO: Use a clients GameIdentification to load the right PacketSerializer
         public PacketSerializer PacketSerializer { get; set; } = new PacketSerializer();
         //public event EventHandler<ClientConnectedEventArgs> ClientConnectedEvent;
         public Action<string> LogAction { get; set; }
@@ -28,8 +40,19 @@ namespace Communicator.Net
         private Dictionary<string, Client> _clients = new Dictionary<string, Client>();
         private List<Client> _connectingClients = new List<Client>();
 
+        public Server()
+        {
+            _thread = new Thread(Run);
+            _thread.Start();
+        }
+
+        public void StopServer()
+        {
+            _shutdownEvent.Set();
+        }
+
         /// <summary>
-        /// Tries to send a packet to a specific client
+        /// Tries to send a packet to a client with a specific <paramref name="serverID"/>
         /// </summary>
         /// <param name="serverID"></param>
         /// <param name="packet"></param>
@@ -43,21 +66,12 @@ namespace Communicator.Net
             }
 
             return false;
-        } 
-
-        public void StopServer()
-        {
-            _shutdownEvent.Set();
-            Dispose();
         }
 
-        public Server()
+        public void RegisterCustomPacket<T>(/* string gameIdentification */) where T : IPacket
         {
-            _thread = new Thread(Run);
-            _thread.Start();
+            PacketSerializer.RegisterPacket<T>();
         }
-
-        //EncryptionProvider.A_RSA _rsaEncryptionInstance = new EncryptionProvider.A_RSA();
 
         public virtual void Run()
         {
@@ -92,11 +106,13 @@ namespace Communicator.Net
                 //_clients.Add(client);
                 _connectingClients.Add(client);
             }
+
+            Dispose();
         }
 
-        private void OnClientDisconnect(object sender, ClientDisconnectedEventArgs e)
+        private void OnClientDisconnect(ClientDisconnectedEventArgs e)
         {
-            Client client = (Client) sender;
+            Client client = e.Client;
 
             if (!_clients.Any(x => x.Value == client)) return;
 
@@ -106,6 +122,8 @@ namespace Communicator.Net
 
             client.PacketReceivedEvent -= OnPacketReceived;
             client.DisconnectedEvent -= OnClientDisconnect;
+
+            ClientDisconnectedEvent?.Invoke(e);
         }
 
         public void OnPacketReceived(object sender, IPacket incomingPacket)
@@ -119,7 +137,7 @@ namespace Communicator.Net
                     case IdentificationPacket ip:
                         // Fully connect or drop client
                         identificationPacket = (IdentificationPacket) incomingPacket;
-                        if (_clients.ContainsKey(identificationPacket.PacketData.ServerID))
+                        if (_clients.ContainsKey(identificationPacket.PacketData.ServerID) || _connectingClients.Any(cl => cl.InitialIdentificationPacket == null ? false : _clients.ContainsKey(cl.InitialIdentificationPacket?.PacketData.ServerID)))
                         {
                             ErrorLogAction?.Invoke($"Duplicate connection with ID '{identificationPacket.PacketData.ServerID}', dropping connection!");
                             DisconnectClient(client);
@@ -128,15 +146,6 @@ namespace Communicator.Net
                         break;
                     case ConfirmationPacket cp:
                         identificationPacket = client.InitialIdentificationPacket;
-                        _clients.Add(client.InitialIdentificationPacket.PacketData.ServerID, client);
-                        _connectingClients.Remove(client);
-                        client.AcceptAllPackets();
-                        ClientConnectedEvent?.Invoke(new ClientConnectedEventArgs()
-                        {
-                            ServerID = identificationPacket.PacketData.ServerID,
-                            Client = client,
-                            GameName = identificationPacket.PacketData.GameIdentification
-                        });
 
                         var clientEncryption = client.AsymmetricEncryptionProvider;
 
@@ -153,8 +162,20 @@ namespace Communicator.Net
                             return;
                         }
 
-                        client.SetEncryption(new Encryption.EncryptionProvider.S_AES());
+                        client.SetEncryption(new EncryptionProvider.S_AES());
                         client.SetEncryptionData(symmetricalKey, symmetricalIV);
+                        client.AcceptAllPackets();
+
+                        _clients.Add(client.InitialIdentificationPacket.PacketData.ServerID, client);
+                        _connectingClients.Remove(client);
+
+                        ClientConnectedEvent?.Invoke(new ClientConnectedEventArgs()
+                        {
+                            ServerID = identificationPacket.PacketData.ServerID,
+                            Client = client,
+                            GameName = identificationPacket.PacketData.GameIdentification
+                        });
+
                         LogAction?.Invoke($"Client with ID '{identificationPacket.PacketData.ServerID}' '{identificationPacket.PacketData.GameIdentification}' connected!");
                         return;
                 }
@@ -178,16 +199,19 @@ namespace Communicator.Net
             client.SetEncryption(Encryption.EncryptionProvider.NONE);
             client.SendPacket(new DisconnectPacket());
             client.StartDisconnect();
-            client.Dispose();
         }
 
         private bool TryAuthenticateGameserver(string passwordHash, string serverID, string gameIdentification)
         {
-            // TODO
-
-
-            ErrorLogAction?.Invoke($"TODO, IMPLEMENT THIS: {nameof(TryAuthenticateGameserver)}");
-            return true;
+            try
+            {
+                return AuthentificationService.AuthenticateGameserver(passwordHash, serverID, gameIdentification);
+            }
+            catch(Exception ex)
+            {
+                ErrorLogAction?.Invoke($"An error occured while trying to authicate client with id '{serverID}': {ex.Message}\n{ex.StackTrace}");
+            }
+            return false;
         }
 
         public void Dispose()
@@ -196,7 +220,6 @@ namespace Communicator.Net
             {
                 var client = kvp.Value;
                 client.StartDisconnect();
-                //client.Dispose();
                 LogAction?.Invoke($"Closing connection with client '{kvp.Key}'");
             }
         }
