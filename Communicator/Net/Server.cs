@@ -148,7 +148,7 @@ namespace Communicator.Net
                         var passwordHashSecond = clientEncryption.Decrypt(Convert.FromBase64String(identificationPacket.PacketData.Base64PasswordHashSecond), clientEncryption.GetKey(true), new byte[0]);
                         var passwordHash = Encoding.UTF8.GetString(passwordHashFirst.Concat(passwordHashSecond).ToArray());
 
-                        if (!TryAuthenticateGameserver(passwordHash, identificationPacket.PacketData.ServerID, identificationPacket.PacketData.GameIdentification))
+                        if (!TryAuthenticateGameserver(passwordHash, identificationPacket.PacketData.ServerID, identificationPacket.PacketData.ServiceIdentification))
                         {
                             ErrorLogAction?.Invoke($"Invalid password for server with ID '{identificationPacket.PacketData.ServerID}', dropping connection!");
                             DisconnectClient(client);
@@ -166,10 +166,10 @@ namespace Communicator.Net
                         {
                             ServerID = identificationPacket.PacketData.ServerID,
                             Client = client,
-                            GameName = identificationPacket.PacketData.GameIdentification
+                            GameName = identificationPacket.PacketData.ServiceIdentification
                         });
 
-                        LogAction?.Invoke($"Client with ID '{identificationPacket.PacketData.ServerID}' '{identificationPacket.PacketData.GameIdentification}' connected!");
+                        LogAction?.Invoke($"Client with ID '{identificationPacket.PacketData.ServerID}' '{identificationPacket.PacketData.ServiceIdentification}' connected!");
                         return;
                 }
                 
@@ -190,7 +190,9 @@ namespace Communicator.Net
         private void DisconnectClient(Client client)
         {
             client.SetEncryption(Encryption.EncryptionProvider.NONE);
-            client.SendPacket(new DisconnectPacket());
+            client.SendPacket(new DisconnectPacket {
+                PacketData = "Disconnected by Server."
+            });
             client.StartDisconnect();
         }
 

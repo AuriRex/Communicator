@@ -4,7 +4,7 @@ namespace Communicator.Packets
 {
     public class IdentificationPacket : BasePacket<IdentificationData>
     {
-        public override IdentificationData PacketData { get; set; } = new IdentificationData() { ServerID = "ServerID", GameIdentification = "UnsetGameName" };
+        public override IdentificationData PacketData { get; set; } = new IdentificationData() { ServerID = "ServerID", ServiceIdentification = "UnsetServiceName" };
     }
 
     public struct IdentificationData
@@ -12,7 +12,7 @@ namespace Communicator.Packets
         // Should be generated on the Game server once and used to identificate
         public string ServerID { get; set; }
         // eg. Terraria, Minecraft
-        public string GameIdentification { get; set; }
+        public string ServiceIdentification { get; set; }
         // Key and Salt for the symmetrical encryption
         public string Base64Key { get; set; }
         public string Base64IV { get; set; }
@@ -46,7 +46,7 @@ namespace Communicator.Packets
             return new IdentificationData
             {
                 ServerID = serverID,
-                GameIdentification = gameIdentification,
+                ServiceIdentification = gameIdentification,
                 Base64Key = Convert.ToBase64String(keyBytes),
                 Base64IV = Convert.ToBase64String(ivBytes),
                 Base64PasswordHashFirst = Convert.ToBase64String(passowrdHashBytesFirst),

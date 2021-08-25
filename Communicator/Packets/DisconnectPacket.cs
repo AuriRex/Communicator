@@ -3,8 +3,8 @@
 namespace Communicator.Packets
 {
     [NoConfirmation, Unignorable]
-    public class DisconnectPacket : BasePacket<bool>
+    public class DisconnectPacket : BasePacket<string>
     {
-        public override bool PacketData { get; set; } = true;
+        public override string PacketData { get; set; } = "UnknownReason";
     }
 }
