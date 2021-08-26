@@ -43,7 +43,7 @@ namespace Communicator.Net
 
         internal IdentificationPacket InitialIdentificationPacket { get; set; } = null;
 
-        protected PacketSerializer packetSerializer;
+        public PacketSerializer PacketSerializer { get; protected set; }
         protected IEncryptionProvider EncryptionProvider
         {
             get
@@ -137,7 +137,7 @@ namespace Communicator.Net
 
         public Client(TcpClient client = null, PacketSerializer packetSerializer = null, Action<string> logAction = null)
         {
-            this.packetSerializer = packetSerializer ?? new PacketSerializer();
+            this.PacketSerializer = packetSerializer ?? new PacketSerializer();
             _logAction = logAction;
 
             _client = client ?? new TcpClient("localhost", 11000);
@@ -145,8 +145,8 @@ namespace Communicator.Net
 
             _logAction?.Invoke($"Client created.");
 
-            _receiver = new Shared.Receiver(_stream, _shutdownEvent, this.packetSerializer, logAction);
-            _sender = new Shared.Sender(_stream, _shutdownEvent, this.packetSerializer, logAction);
+            _receiver = new Shared.Receiver(_stream, _shutdownEvent, this.PacketSerializer, logAction);
+            _sender = new Shared.Sender(_stream, _shutdownEvent, this.PacketSerializer, logAction);
 
             _receiver.PacketReceived += OnPacketReceived;
             _receiver.ThreadFinished += OnSubThreadsExited;

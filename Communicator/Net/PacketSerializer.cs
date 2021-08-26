@@ -64,21 +64,22 @@ namespace Communicator.Net
         /// <exception cref="ArgumentException"></exception>
         public IPacket DeserializePacket(string jsonPacket)
         {
+            IPacket info;
             try
             {
-                var info = (IPacket) JsonConvert.DeserializeObject(jsonPacket, typeof(DummyPacket), JsonSettings);
-
+                info = (IPacket) JsonConvert.DeserializeObject(jsonPacket, typeof(DummyPacket), JsonSettings);
+            
                 if (_registeredPacketTypes.TryGetValue(info.PacketType, out Type type))
                 {
                     return (IPacket) DeserializePacket(jsonPacket, type);
                 }
-
-                throw new ArgumentException($"Unknown packet type '{info.PacketType}' received!");
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                throw new Exception($"Error while decoding json '{jsonPacket}'", ex);
+                throw new ArgumentException($"Error while decoding json '{jsonPacket}'", ex);
             }
+
+            throw new ArgumentException($"Unknown packet type '{info.PacketType}' received!");
         }
 
         public T DeserializePacket<T>(string jsonPacket) where T : IPacket

@@ -68,6 +68,7 @@ namespace Communicator.Net
             return false;
         }
 
+        [Obsolete]
         public void RegisterCustomPacket<T>(/* string gameIdentification */) where T : IPacket
         {
             PacketSerializer.RegisterPacket<T>();
@@ -82,7 +83,7 @@ namespace Communicator.Net
 
             while (!_shutdownEvent.WaitOne(0))
             {
-                Client client = new Client(server.AcceptTcpClient(), PacketSerializer, LogAction);
+                Client client = new Client(server.AcceptTcpClient(), null, LogAction);
 
                 client.ErrorAction = ErrorLogAction;
 
@@ -98,6 +99,8 @@ namespace Communicator.Net
                 });
 
                 _connectingClients.Add(client);
+
+                Thread.Sleep(1);
             }
 
             Dispose();
@@ -166,7 +169,7 @@ namespace Communicator.Net
                         {
                             ServerID = identificationPacket.PacketData.ServerID,
                             Client = client,
-                            GameName = identificationPacket.PacketData.ServiceIdentification
+                            ServiceName = identificationPacket.PacketData.ServiceIdentification
                         });
 
                         LogAction?.Invoke($"Client with ID '{identificationPacket.PacketData.ServerID}' '{identificationPacket.PacketData.ServiceIdentification}' connected!");

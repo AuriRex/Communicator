@@ -4,6 +4,6 @@
     {
         public string ServerID { get; set; }
         public Client Client { get; set; }
-        public string GameName { get; set; }
+        public string ServiceName { get; set; }
     }
 }

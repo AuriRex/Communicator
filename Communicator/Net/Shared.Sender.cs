@@ -94,6 +94,11 @@ namespace Communicator.Net
                     {
                         try
                         {
+                            if(_packetQueue.IsEmpty)
+                            {
+                                Thread.Sleep(1);
+                            }
+
                             if(_lastPacketSent.AddSeconds(HeartbeatPacketInterval) < DateTimeOffset.UtcNow)
                             {
                                 SendPacket(new HeartbeatPacket());

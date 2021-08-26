@@ -64,7 +64,7 @@ namespace Communicator.Net
 
         public void RegisterPacket<T>() where T : IPacket
         {
-            packetSerializer.RegisterPacket<T>();
+            PacketSerializer.RegisterPacket<T>();
         }
 
         protected override void OnPacketReceived(object sender, IPacket incomingPacket)
@@ -137,17 +137,16 @@ namespace Communicator.Net
                     if (string.IsNullOrEmpty(Hostname)) return true;
                     if (string.IsNullOrEmpty(ServerId)) return true;
                     if (string.IsNullOrEmpty(Password)) return true;
-                    if (string.IsNullOrEmpty(Base64Salt)) return true;
 
                     return false;
                 }
             }
 
-            public string Hostname { get; set; }
-            public int Port { get; set; }
-            public string ServerId { get; set; }
-            public string Password { get; set; }
-            public string Base64Salt { get; set; }
+            public string Hostname { get; set; } = string.Empty;
+            public int Port { get; set; } = 0;
+            public string ServerId { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+            public string Base64Salt { get; set; } = string.Empty;
 
             internal GSConfig()
             {
@@ -162,15 +161,16 @@ namespace Communicator.Net
                     base64salt = Convert.ToBase64String(Utils.Utils.GenerateSalt());
                 }
 
-                if(string.IsNullOrEmpty(password))
-                {
-
-                }
-
                 if (string.IsNullOrEmpty(serverId) || string.IsNullOrEmpty(hostname) || string.IsNullOrEmpty(base64salt))
                 {
                     throw new ArgumentException("Arguments may not be null or empty!");
                 }
+
+                Hostname = hostname;
+                Port = port;
+                ServerId = serverId;
+                Password = password;
+                Base64Salt = base64salt;
             }
 
             public byte[] GetSalt()
@@ -200,7 +200,7 @@ namespace Communicator.Net
                 }
                 catch (Exception)
                 {
-                    return new GSConfig();
+                    throw new ArgumentException($"Error loading config from path '{path}'");
                 }
             }
 

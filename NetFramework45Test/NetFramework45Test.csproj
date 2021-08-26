@@ -49,6 +49,10 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\TerrariaCommunicator\TerrariaCommunicator-NetworkPlugin\TerrariaCommunicator-NetworkPlugin.csproj">
+      <Project>{cb3c7105-5dbe-44c4-a471-8f0fac8c13e6}</Project>
+      <Name>TerrariaCommunicator-NetworkPlugin</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Communicator\Communicator.csproj">
       <Project>{27730f0f-cdc1-4533-82a2-1bed91052659}</Project>
       <Name>Communicator</Name>

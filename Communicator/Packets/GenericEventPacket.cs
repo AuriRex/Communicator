@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using static Communicator.Packets.GenericEventPacket;
-
-namespace Communicator.Packets
+﻿namespace Communicator.Packets
 {
-    public class GenericEventPacket : BasePacket<EventData>
+    public class GenericEventPacket : BasePacket<GenericEventPacket.EventData>
     {
         public override EventData PacketData { get; set; } = new EventData() {
             Type = "UnsetGenericEventType",

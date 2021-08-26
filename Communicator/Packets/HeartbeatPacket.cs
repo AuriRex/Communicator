@@ -1,7 +1,4 @@
 ﻿using Communicator.Attributes;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Communicator.Packets
 {
