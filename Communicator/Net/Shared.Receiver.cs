@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Communicator.Net
 {
@@ -28,6 +29,7 @@ namespace Communicator.Net
 
             private NetworkStream _stream;
             private Thread _thread;
+            private Task _task;
             private byte[] _data;
             private byte[] _messageLengthData;
             private ManualResetEvent _shutdownEvent;
@@ -41,8 +43,9 @@ namespace Communicator.Net
                 _shutdownEvent = shutdownEvent;
                 _packetSerializer = packetSerializer;
 
-                _thread = new Thread(Run);
-                _thread.Start();
+                /*_thread = new Thread(Run);
+                _thread.Start();*/
+                _task = Task.Run(Run);
             }
 
             private void Run()
@@ -110,6 +113,12 @@ namespace Communicator.Net
                     HasExited = true;
                     ThreadFinished?.Invoke();
                 }
+            }
+
+            internal void WaitDispose()
+            {
+                _shutdownEvent.Set();
+                _task.Wait();
             }
         }
     }

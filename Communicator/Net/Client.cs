@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Communicator.Net
 {
@@ -211,6 +212,18 @@ namespace Communicator.Net
             }
             
             PacketReceivedEvent?.Invoke(this, packet);
+        }
+
+        internal void WaitDispose()
+        {
+            SendPacket(new DisconnectPacket() {
+                PacketData = "Bot Shutting Down."
+            });
+
+            Task.Delay(100).Wait();
+
+            _sender.WaitDispose();
+            _receiver.WaitDispose();
         }
 
         public void Dispose()

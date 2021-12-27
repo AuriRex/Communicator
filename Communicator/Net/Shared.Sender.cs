@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Communicator.Net
 {
@@ -34,6 +35,7 @@ namespace Communicator.Net
 
             private NetworkStream _stream;
             private Thread _thread;
+            private Task _task;
             private ConcurrentQueue<IPacket> _packetQueue = new ConcurrentQueue<IPacket>();
             private ConcurrentQueue<ValidationEntry> _validationQueue = new ConcurrentQueue<ValidationEntry>();
             private ConcurrentBag<string> _unusedValidationHashes = new ConcurrentBag<string>();
@@ -66,14 +68,15 @@ namespace Communicator.Net
                 _packetSerializer = packetSerializer;
                 _logAction = logAction;
 
-                _thread = new Thread(Run);
-                _thread.Start();
+                /*_thread = new Thread(Run);
+                _thread.Start();*/
+                _task = Task.Run(Run);
             }
 
             private void SendPacket(IPacket packet)
             {
                 string jsonPacket = _packetSerializer.SerializePacket(packet, packet.GetType());
-                if(packet.GetType() != typeof(HeartbeatPacket))
+                if (packet.GetType() != typeof(HeartbeatPacket))
                     _logAction?.Invoke($"Sending Packet: '{jsonPacket}' with encryption '{EncryptionProvider.GetType()}'");
                 byte[] data = ASCIIEncoding.UTF8.GetBytes(jsonPacket);
 
@@ -90,7 +93,8 @@ namespace Communicator.Net
             {
                 try
                 {
-                    while(!_shutdownEvent.WaitOne(0))
+                    IPacket packet = null;
+                    while (!_shutdownEvent.WaitOne(0))
                     {
                         try
                         {
@@ -98,13 +102,13 @@ namespace Communicator.Net
                             {
                                 Thread.Sleep(1);
                             }
+                            
 
                             if(_lastPacketSent.AddSeconds(HeartbeatPacketInterval) < DateTimeOffset.UtcNow)
                             {
                                 SendPacket(new HeartbeatPacket());
                             }
 
-                            IPacket packet;
                             while (_packetQueue.TryDequeue(out packet))
                             {
                                 Thread.Sleep(1);
@@ -115,15 +119,21 @@ namespace Communicator.Net
                         {
                             ErrorAction?.Invoke($"An IOException has occured, client has most likely disconnected.");
                             _shutdownEvent.Set();
-                            DisconnectedEvent?.Invoke(this, new ClientDisconnectedEventArgs() {
+                            DisconnectedEvent?.Invoke(this, new ClientDisconnectedEventArgs()
+                            {
                                 IsIntentional = false,
-                                Packet = null
+                                Packet = packet
                             });
                         }
                         catch(Exception ex)
                         {
                             ErrorAction?.Invoke($"An error has occured (C): {ex.Message}\n{ex.StackTrace}");
                             _shutdownEvent.Set();
+                            DisconnectedEvent?.Invoke(this, new ClientDisconnectedEventArgs()
+                            {
+                                IsIntentional = false,
+                                Packet = packet
+                            });
                         }
                     }
                 }
@@ -138,6 +148,12 @@ namespace Communicator.Net
                     HasExited = true;
                     ThreadFinished?.Invoke();
                 }
+            }
+
+            internal void WaitDispose()
+            {
+                _shutdownEvent.Set();
+                _task.Wait();
             }
         }
 

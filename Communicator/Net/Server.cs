@@ -68,6 +68,11 @@ namespace Communicator.Net
             return false;
         }
 
+        public void WaitStopServer()
+        {
+            WaitDispose();
+        }
+
         [Obsolete]
         public void RegisterCustomPacket<T>(/* string gameIdentification */) where T : IPacket
         {
@@ -217,8 +222,18 @@ namespace Communicator.Net
             foreach(KeyValuePair<string, Client> kvp in _clients)
             {
                 var client = kvp.Value;
-                client.StartDisconnect();
                 LogAction?.Invoke($"Closing connection with client '{kvp.Key}'");
+                client.StartDisconnect();
+            }
+        }
+
+        private void WaitDispose()
+        {
+            foreach (KeyValuePair<string, Client> kvp in _clients)
+            {
+                var client = kvp.Value;
+                LogAction?.Invoke($"Closing connection with client '{kvp.Key}'");
+                client.WaitDispose();
             }
         }
     }
