@@ -214,13 +214,17 @@ namespace Communicator.Net
             PacketReceivedEvent?.Invoke(this, packet);
         }
 
-        internal void WaitDispose()
+        internal void WaitDispose(bool sendDisconnectPacket = true)
         {
-            SendPacket(new DisconnectPacket() {
-                PacketData = "Bot Shutting Down."
-            });
+            if(sendDisconnectPacket)
+            {
+                SendPacket(new DisconnectPacket()
+                {
+                    PacketData = "Shutting Down."
+                });
 
-            Task.Delay(100).Wait();
+                Task.Delay(100).Wait();
+            }
 
             _sender.WaitDispose();
             _receiver.WaitDispose();

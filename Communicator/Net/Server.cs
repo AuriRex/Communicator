@@ -32,13 +32,16 @@ namespace Communicator.Net
         // TODO: Use a clients GameIdentification to load the right PacketSerializer
         public PacketSerializer PacketSerializer { get; set; } = new PacketSerializer();
 
+        public bool DisallowExternalHosts { get; set; } = false;
+
         public Action<string> LogAction { get; set; }
         public Action<string> ErrorLogAction { get; set; }
 
         private Thread _thread;
-        private ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
-        private Dictionary<string, Client> _clients = new Dictionary<string, Client>();
-        private List<Client> _connectingClients = new List<Client>();
+        protected TcpListener tcpListener;
+        protected ManualResetEvent shutdownEvent = new ManualResetEvent(false);
+        protected Dictionary<string, Client> clients = new Dictionary<string, Client>();
+        protected List<Client> connectingClients = new List<Client>();
 
         public Server()
         {
@@ -48,7 +51,7 @@ namespace Communicator.Net
 
         public void StopServer()
         {
-            _shutdownEvent.Set();
+            shutdownEvent.Set();
         }
 
         /// <summary>
@@ -59,7 +62,7 @@ namespace Communicator.Net
         /// <returns>returns <paramref name="true"/> if successful</returns>
         public bool TrySendPacket(string serverID, IPacket packet)
         {
-            if (_clients.TryGetValue(serverID, out Client client))
+            if (clients.TryGetValue(serverID, out Client client))
             {
                 client.SendPacket(packet);
                 return true;
@@ -82,44 +85,77 @@ namespace Communicator.Net
         public virtual void Run()
         {
             TcpListener server = new TcpListener(IPAddress.Any, 11000);
+            this.tcpListener = server;
             server.Start();
 
             LogAction?.Invoke("Server thread started!");
 
-            while (!_shutdownEvent.WaitOne(0))
+            while (!shutdownEvent.WaitOne(0))
             {
-                Client client = new Client(server.AcceptTcpClient(), null, LogAction);
+                try
+                {
+                    Client client = new Client(server.AcceptTcpClient(), null, LogAction);
 
-                client.ErrorAction = ErrorLogAction;
+                    if (!AllowClientToConnect(client))
+                    {
+                        LogAction?.Invoke($"Refused client connection: {client.GetRemoteEndpoint().Address}:{client.GetRemoteEndpoint().Port}");
+                        client.StartDisconnect();
+                        return;
+                    }
 
-                LogAction?.Invoke($"Client connecting ... ({client.GetRemoteEndpoint().Address}:{client.GetRemoteEndpoint().Port})");
-
-                client.OnlyAcceptPacketsOfType(typeof(IdentificationPacket));
-
-                client.PacketReceivedEvent += OnPacketReceived;
-                client.DisconnectedEvent += OnClientDisconnect;
-
-                client.SendPacket(new InitialPublicKeyPacket() {
-                    PacketData = InitialPublicKeyPacket.KeyData.CreateKeyData(client.AsymmetricEncryptionProvider.GetKey(false))
-                });
-
-                _connectingClients.Add(client);
-
-                Thread.Sleep(1);
+                    TryConnectClient(client);
+                }
+                catch(Exception ex)
+                {
+                    ErrorLogAction?.Invoke($"{ex}: {ex.Message}\n{ex.StackTrace}");
+                }
+                finally
+                {
+                    Thread.Sleep(1);
+                }
             }
 
             Dispose();
+        }
+
+        public virtual void TryConnectClient(Client client)
+        {
+            client.ErrorAction = ErrorLogAction;
+
+            LogAction?.Invoke($"Client connecting ... ({client.GetRemoteEndpoint().Address}:{client.GetRemoteEndpoint().Port})");
+
+            client.OnlyAcceptPacketsOfType(typeof(IdentificationPacket));
+
+            client.PacketReceivedEvent += OnPacketReceived;
+            client.DisconnectedEvent += OnClientDisconnect;
+
+            client.SendPacket(new InitialPublicKeyPacket()
+            {
+                PacketData = InitialPublicKeyPacket.KeyData.CreateKeyData(client.AsymmetricEncryptionProvider.GetKey(false))
+            });
+
+            connectingClients.Add(client);
+        }
+
+        public virtual bool AllowClientToConnect(Client client)
+        {
+            if(DisallowExternalHosts && client.GetRemoteEndpoint().Address.ToString() != ((IPEndPoint) tcpListener.LocalEndpoint).Address.ToString())
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private void OnClientDisconnect(ClientDisconnectedEventArgs e)
         {
             Client client = e.Client;
 
-            if (!_clients.Any(x => x.Value == client)) return;
+            if (!clients.Any(x => x.Value == client)) return;
 
-            string serverId = _clients.First(x => x.Value == client).Key;
+            string serverId = clients.First(x => x.Value == client).Key;
 
-            _clients.Remove(serverId);
+            clients.Remove(serverId);
 
             client.PacketReceivedEvent -= OnPacketReceived;
             client.DisconnectedEvent -= OnClientDisconnect;
@@ -131,14 +167,14 @@ namespace Communicator.Net
         {
             Client client = (Client) sender;
             IdentificationPacket identificationPacket;
-            if (_connectingClients.Contains(client))
+            if (connectingClients.Contains(client))
             {
                 switch(incomingPacket)
                 {
                     case IdentificationPacket ip:
                         // Fully connect or drop client
                         identificationPacket = (IdentificationPacket) incomingPacket;
-                        if (_clients.ContainsKey(identificationPacket.PacketData.ServerID) || _connectingClients.Any(cl => cl.InitialIdentificationPacket == null ? false : _clients.ContainsKey(cl.InitialIdentificationPacket?.PacketData.ServerID)))
+                        if (clients.ContainsKey(identificationPacket.PacketData.ServerID) || connectingClients.Any(cl => cl.InitialIdentificationPacket == null ? false : clients.ContainsKey(cl.InitialIdentificationPacket?.PacketData.ServerID)))
                         {
                             ErrorLogAction?.Invoke($"Duplicate connection with ID '{identificationPacket.PacketData.ServerID}', dropping connection!");
                             DisconnectClient(client);
@@ -167,8 +203,8 @@ namespace Communicator.Net
                         client.SetEncryptionData(symmetricalKey, symmetricalIV);
                         client.AcceptAllPackets();
 
-                        _clients.Add(client.InitialIdentificationPacket.PacketData.ServerID, client);
-                        _connectingClients.Remove(client);
+                        clients.Add(client.InitialIdentificationPacket.PacketData.ServerID, client);
+                        connectingClients.Remove(client);
 
                         ClientConnectedEvent?.Invoke(new ClientConnectedEventArgs()
                         {
@@ -219,7 +255,7 @@ namespace Communicator.Net
 
         public void Dispose()
         {
-            foreach(KeyValuePair<string, Client> kvp in _clients)
+            foreach(KeyValuePair<string, Client> kvp in clients)
             {
                 var client = kvp.Value;
                 LogAction?.Invoke($"Closing connection with client '{kvp.Key}'");
@@ -229,7 +265,7 @@ namespace Communicator.Net
 
         private void WaitDispose()
         {
-            foreach (KeyValuePair<string, Client> kvp in _clients)
+            foreach (KeyValuePair<string, Client> kvp in clients)
             {
                 var client = kvp.Value;
                 LogAction?.Invoke($"Closing connection with client '{kvp.Key}'");

@@ -34,7 +34,6 @@ namespace Communicator.Net
             public int HeartbeatPacketInterval { get; internal set; } = 5;
 
             private NetworkStream _stream;
-            private Thread _thread;
             private Task _task;
             private ConcurrentQueue<IPacket> _packetQueue = new ConcurrentQueue<IPacket>();
             private ConcurrentQueue<ValidationEntry> _validationQueue = new ConcurrentQueue<ValidationEntry>();
@@ -68,8 +67,6 @@ namespace Communicator.Net
                 _packetSerializer = packetSerializer;
                 _logAction = logAction;
 
-                /*_thread = new Thread(Run);
-                _thread.Start();*/
                 _task = Task.Run(Run);
             }
 

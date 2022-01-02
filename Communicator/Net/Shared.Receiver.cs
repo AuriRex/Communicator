@@ -28,7 +28,6 @@ namespace Communicator.Net
             internal event Action ThreadFinished;
 
             private NetworkStream _stream;
-            private Thread _thread;
             private Task _task;
             private byte[] _data;
             private byte[] _messageLengthData;
@@ -43,8 +42,6 @@ namespace Communicator.Net
                 _shutdownEvent = shutdownEvent;
                 _packetSerializer = packetSerializer;
 
-                /*_thread = new Thread(Run);
-                _thread.Start();*/
                 _task = Task.Run(Run);
             }
 
@@ -53,7 +50,6 @@ namespace Communicator.Net
                 // main thread loop for receiving data...
                 try
                 {
-                    
                     while (!_shutdownEvent.WaitOne(0))
                     {
                         _messageLengthData = new byte[4];
@@ -78,8 +74,9 @@ namespace Communicator.Net
                                 }
                                 catch(Exception)
                                 {
-                                    ErrorAction?.Invoke($"Decryption with '{EncryptionProvider.GetType()}' failed, falling back to no encryption!");
-                                    _data = Encryption.EncryptionProvider.NONE.Decrypt(_data, KeyBytes, IVBytes);
+                                    ErrorAction?.Invoke($"Decryption with '{EncryptionProvider.GetType()}' failed!");
+                                    throw;
+                                    //_data = Encryption.EncryptionProvider.NONE.Decrypt(_data, KeyBytes, IVBytes);
                                 }
                                 
 
