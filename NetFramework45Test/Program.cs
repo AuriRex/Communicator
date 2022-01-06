@@ -62,14 +62,14 @@ namespace NetFramework45Test
 
             comPlugin.Register(ps);
 
-            Console.WriteLine(salt);
+            Console.WriteLine($"Base64 salt: {salt}");
 
             GameserverClient cl = new GameserverClient("localhost", 11000, "aPersistentServerId", "terraria", "password123", salt, ps, (s) => { Console.WriteLine($"[Info ] {s}"); } );
             cl.RegisterPacket<MyCoolCustomEventPacket>();
             cl.ErrorAction = (s) => { Console.WriteLine($"[Error] {s}"); };
             cl.PacketReceivedEvent += Cl_PacketReceivedEvent;
             Console.WriteLine("Test");
-            while(true)
+            while (true)
             {
                 string message = Console.ReadLine();
 

@@ -13,6 +13,7 @@ namespace Communicator.Net
         //https://stackoverflow.com/a/20698153
         internal sealed class Receiver
         {
+            public static int MAX_MESSAGE_LENGTH { get; set; } = 4096;
             internal bool HasExited { get; private set; } = false;
             internal Action<string> LogAction
             {
@@ -64,6 +65,7 @@ namespace Communicator.Net
                             else if (_stream.Read(_messageLengthData, 0, 4) > 0)
                             {
                                 var length = BitConverter.ToInt32(_messageLengthData, 0);
+                                if (length > MAX_MESSAGE_LENGTH) throw new Exception($"Packet length exceeded maximum set length of {MAX_MESSAGE_LENGTH}!");
                                 _data = new byte[length];
                                 _stream.Read(_data, 0, length);
                                 // Raise the DataReceived event w/ data...

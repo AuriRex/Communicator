@@ -36,6 +36,7 @@ namespace Communicator.Net
             private NetworkStream _stream;
             private Task _task;
             private ConcurrentQueue<IPacket> _packetQueue = new ConcurrentQueue<IPacket>();
+            private ConcurrentQueue<IPacket> _unsafePacketQueue = new ConcurrentQueue<IPacket>();
             private ConcurrentQueue<ValidationEntry> _validationQueue = new ConcurrentQueue<ValidationEntry>();
             private ConcurrentBag<string> _unusedValidationHashes = new ConcurrentBag<string>();
             private ManualResetEvent _shutdownEvent;
@@ -54,6 +55,11 @@ namespace Communicator.Net
                 _packetQueue.Enqueue(packet);
             }
 
+            internal void QueuePacketUnsafe(IPacket packet)
+            {
+                _unsafePacketQueue.Enqueue(packet);
+            }
+
             internal void ValidationPacketReceived(string hash)
             {
                 if (!_unusedValidationHashes.Contains(hash))
@@ -70,16 +76,19 @@ namespace Communicator.Net
                 _task = Task.Run(Run);
             }
 
-            private void SendPacket(IPacket packet)
+            private void SendPacket(IPacket packet, bool sendUnsafe = false)
             {
+                var encryptionProvider = sendUnsafe ? Encryption.EncryptionProvider.NONE : EncryptionProvider;
+
                 string jsonPacket = _packetSerializer.SerializePacket(packet, packet.GetType());
                 if (packet.GetType() != typeof(HeartbeatPacket))
-                    _logAction?.Invoke($"Sending Packet: '{jsonPacket}' with encryption '{EncryptionProvider.GetType()}'");
+                    _logAction?.Invoke($"Sending Packet: '{jsonPacket}' with encryption '{encryptionProvider.GetType()}'");
                 byte[] data = ASCIIEncoding.UTF8.GetBytes(jsonPacket);
 
-                data = EncryptionProvider.Encrypt(data, KeyBytes, IVBytes);
+                data = encryptionProvider.Encrypt(data, KeyBytes, IVBytes);
 
                 byte[] messageLength = BitConverter.GetBytes((Int32) data.Length);
+                Console.WriteLine($"Sending \"{packet.GetType().FullName}\" with ENC \"{encryptionProvider.GetType().FullName}\", length = {data.Length}");
                 _stream.Write(messageLength, 0, 4);
 
                 _stream.Write(data, 0, data.Length);
@@ -104,6 +113,12 @@ namespace Communicator.Net
                             if(_lastPacketSent.AddSeconds(HeartbeatPacketInterval) < DateTimeOffset.UtcNow)
                             {
                                 SendPacket(new HeartbeatPacket());
+                            }
+
+                            while(_unsafePacketQueue.TryDequeue(out packet))
+                            {
+                                Thread.Sleep(1);
+                                SendPacket(packet, sendUnsafe: true);
                             }
 
                             while (_packetQueue.TryDequeue(out packet))

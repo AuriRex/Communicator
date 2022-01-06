@@ -42,6 +42,7 @@ namespace Communicator.Net
             }
         }
 
+        internal ConnectionStatus Status { get; set; } = ConnectionStatus.PreConnecting;
         internal IdentificationPacket InitialIdentificationPacket { get; set; } = null;
 
         public PacketSerializer PacketSerializer { get; protected set; }
@@ -77,6 +78,11 @@ namespace Communicator.Net
         public void SendPacket(IPacket packet)
         {
             _sender.QueuePacket(packet);
+        }
+
+        public void SendPacketUnencrypted(IPacket packet)
+        {
+            _sender.QueuePacketUnsafe(packet);
         }
 
         public void Connect(string hostname, int port)
@@ -136,9 +142,9 @@ namespace Communicator.Net
         }
 #nullable restore
 
-        public Client(TcpClient client = null, PacketSerializer packetSerializer = null, Action<string> logAction = null)
+        public Client(TcpClient client = null, PacketSerializer packetSerializerPrefab = null, Action<string> logAction = null)
         {
-            this.PacketSerializer = packetSerializer ?? new PacketSerializer();
+            this.PacketSerializer = new PacketSerializer(packetSerializerPrefab);
             _logAction = logAction;
 
             _client = client ?? new TcpClient("localhost", 11000);
@@ -165,8 +171,20 @@ namespace Communicator.Net
             DisconnectedEvent?.Invoke(e);
         }
 
+        public virtual void OnReconnectPacketReceived()
+        {
+            StartDisconnect();
+            // Todo?
+        }
+
+        public virtual void OnDisconnectPacketReceived()
+        {
+            StartDisconnect();
+        }
+
         internal void StartDisconnect()
         {
+            Status = ConnectionStatus.Disconnected;
             _shutdownEvent.Set();
             _intentionalDisconnect = true;
         }
@@ -195,10 +213,10 @@ namespace Communicator.Net
                         InitialIdentificationPacket = ip;
                     break;
                 case DisconnectPacket dp:
-                    StartDisconnect();
+                    OnDisconnectPacketReceived();
                     return;
                 case ReconnectPacket rp:
-                    StartDisconnect();
+                    OnReconnectPacketReceived();
                     // TODO ?
                     return;
                 case HeartbeatPacket hp:
@@ -246,6 +264,14 @@ namespace Communicator.Net
             this.PacketReceivedEvent = null;
             this.IgnoredPacketReceivedEvent = null;
             this.DisconnectedEvent = null;
+        }
+
+        internal enum ConnectionStatus
+        {
+            PreConnecting,
+            Connecting,
+            Connected,
+            Disconnected
         }
     }
 }

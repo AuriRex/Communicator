@@ -14,6 +14,27 @@ namespace Communicator.Net
 
         public PacketSerializer()
         {
+            RegisterBasePackets();
+        }
+
+        public PacketSerializer(PacketSerializer prefab)
+        {
+
+            if (prefab == null)
+            {
+                RegisterBasePackets();
+                return;
+            }
+
+            foreach(var pType in prefab.GetRegisteredPacketTypes())
+            {
+                this.RegisterPacket(pType);
+            }
+
+        }
+
+        private void RegisterBasePackets()
+        {
             this.RegisterPacket<ConfirmationPacket>();
             this.RegisterPacket<GenericEventPacket>();
             this.RegisterPacket<IdentificationPacket>();
@@ -30,12 +51,28 @@ namespace Communicator.Net
         /// <exception cref="ArgumentException"></exception>
         public void RegisterPacket<T>() where T : IPacket
         {
-            if(_registeredPacketTypes.ContainsKey(typeof(T).Name))
+            RegisterPacket(typeof(T));
+        }
+
+        protected void RegisterPacket(Type pType)
+        {
+            if (!typeof(IPacket).IsAssignableFrom(pType)) throw new ArgumentException($"{pType.FullName} does inherit {nameof(IPacket)}!");
+
+            if (_registeredPacketTypes.ContainsKey(pType.Name))
             {
-                throw new ArgumentException($"A custom packet with name '{typeof(T).Name}' is already registered!");
+                throw new ArgumentException($"A custom packet with name '{pType.Name}' is already registered!");
             }
 
-            _registeredPacketTypes.Add(typeof(T).Name, typeof(T));
+            _registeredPacketTypes.Add(pType.Name, pType);
+        }
+
+        /// <summary>
+        /// Get all packet types that have been registered.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<Type> GetRegisteredPacketTypes()
+        {
+            return _registeredPacketTypes.Values;
         }
 
         public string SerializePacket<T>(T packet) where T : IPacket
@@ -76,7 +113,7 @@ namespace Communicator.Net
             }
             catch (Exception ex)
             {
-                throw new ArgumentException($"Error while decoding json '{jsonPacket}'", ex);
+                throw new ArgumentException($"Error while decoding packet json!", ex);
             }
 
             throw new ArgumentException($"Unknown packet type '{info.PacketType}' received!");

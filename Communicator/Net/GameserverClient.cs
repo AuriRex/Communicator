@@ -2,6 +2,7 @@
 using Communicator.Interfaces;
 using Communicator.Net.Encryption;
 using Communicator.Packets;
+using Communicator.Utils.Extensions;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -43,7 +44,7 @@ namespace Communicator.Net
             StartDisconnect();
         }
 
-        public GameserverClient(string hostname, int port, string serverId, string serviceIdentification, string password, string base64salt, PacketSerializer packetSerializer = null, Action<string> logAction = null) : base(new TcpClient(hostname, port), packetSerializer ?? new PacketSerializer(), logAction)
+        public GameserverClient(string hostname, int port, string serverId, string serviceIdentification, string password, string base64salt, PacketSerializer packetSerializerPrefab = null, Action<string> logAction = null) : base(new TcpClient(hostname, port), packetSerializerPrefab, logAction)
         {            
             if(string.IsNullOrEmpty(serverId) || string.IsNullOrEmpty(serviceIdentification) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(base64salt))
             {
@@ -57,7 +58,7 @@ namespace Communicator.Net
 
             //Console.WriteLine(_passwordHash);
 
-            this.OnlyAcceptPacketsOfType(typeof(ConfirmationPacket));
+            //this.OnlyAcceptPacketsOfType(typeof(ConfirmationPacket));
 
             SetAsymmetricalEncryptionProvider(new EncryptionProvider.A_RSA());
         }
@@ -74,6 +75,7 @@ namespace Communicator.Net
                 switch(incomingPacket)
                 {
                     case InitialPublicKeyPacket ipkp:
+                        if (Connected) return;
 
                         byte[] publicKey = ipkp.PacketData.GetKey();
 
@@ -90,13 +92,35 @@ namespace Communicator.Net
                             PacketData = IdentificationData.CreateKeyData(_serverId, _serviceIdentification, encryptedKey, encryptedIV, encryptedPWHashFirst, encryptedPWHashSecond)
                         };
 
-                        this.SendPacket(_identificationPacket);
+                        this.SetEncryption(_aesEncryptionInstance);
+                        this.SetEncryptionData(_aesEncryptionInstance.GetKey(true), _aesEncryptionInstance.GetIV());
 
-                        break;
+                        this.SendPacketUnencrypted(_identificationPacket);
+
+                        return;
                     case ConfirmationPacket confirmationPacket:
+                        if (Connected) return;
+
                         string identificationPacketHash = Utils.Utils.HashPacket(_identificationPacket);
 
                         if (confirmationPacket.PacketData.Hash != identificationPacketHash)
+                        {
+                            LogAction?.Invoke($"Confirmation Hash doesn't match, dropping connection!");
+                            this.StartDisconnect();
+                            return;
+                        }
+                       
+                        this.AcceptAllPackets();
+
+                        confirmationPacket.ConfirmPacket(this);
+
+                        Connected = true;
+                        return;
+                    /*case SwitchEncryptionPacket encryptionPacket:
+                        if (Connected) return;
+                        string identificationPacketHash = Utils.Utils.HashPacket(_identificationPacket);
+
+                        if (encryptionPacket.PacketData.ConfirmationHash != identificationPacketHash)
                         {
                             LogAction?.Invoke($"Confirmation Hash doesn't match, dropping connection!");
                             this.StartDisconnect();
@@ -106,8 +130,9 @@ namespace Communicator.Net
                         this.SetEncryption(_aesEncryptionInstance);
                         this.SetEncryptionData(_aesEncryptionInstance.GetKey(true), _aesEncryptionInstance.GetIV());
                         this.AcceptAllPackets();
+
                         Connected = true;
-                        return;
+                        break;*/
                     default:
                         return;
                 }
@@ -115,13 +140,7 @@ namespace Communicator.Net
 
             if (!incomingPacket.GetType().CustomAttributes.Any(x => x.AttributeType == typeof(NoConfirmationAttribute)))
             {
-                this.SendPacket(new ConfirmationPacket()
-                {
-                    PacketData = new ConfirmationData()
-                    {
-                        Hash = Utils.Utils.HashPacket(incomingPacket)
-                    }
-                });
+                incomingPacket.ConfirmPacket(this);
             }
 
             base.OnPacketReceived(sender, incomingPacket);

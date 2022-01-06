@@ -3,6 +3,7 @@ using Communicator.Interfaces;
 using Communicator.Net.Encryption;
 using Communicator.Net.EventArgs;
 using Communicator.Packets;
+using Communicator.Utils.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +11,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using static Communicator.Net.Client;
 
 namespace Communicator.Net
@@ -37,7 +39,7 @@ namespace Communicator.Net
         public Action<string> LogAction { get; set; }
         public Action<string> ErrorLogAction { get; set; }
 
-        private Thread _thread;
+        private Task _serverTask;
         protected TcpListener tcpListener;
         protected ManualResetEvent shutdownEvent = new ManualResetEvent(false);
         protected Dictionary<string, Client> clients = new Dictionary<string, Client>();
@@ -45,8 +47,12 @@ namespace Communicator.Net
 
         public Server()
         {
-            _thread = new Thread(Run);
-            _thread.Start();
+
+        }
+
+        public void StartServer()
+        {
+            _serverTask = Task.Run(Run);
         }
 
         public void StopServer()
@@ -84,38 +90,45 @@ namespace Communicator.Net
 
         public virtual void Run()
         {
-            TcpListener server = new TcpListener(IPAddress.Any, 11000);
-            this.tcpListener = server;
-            server.Start();
-
-            LogAction?.Invoke("Server thread started!");
-
-            while (!shutdownEvent.WaitOne(0))
+            try
             {
-                try
-                {
-                    Client client = new Client(server.AcceptTcpClient(), null, LogAction);
+                TcpListener server = new TcpListener(IPAddress.Any, 11000);
+                this.tcpListener = server;
+                server.Start();
 
-                    if (!AllowClientToConnect(client))
+                LogAction?.Invoke("Server task started!");
+
+                while (!shutdownEvent.WaitOne(0))
+                {
+                    try
                     {
-                        LogAction?.Invoke($"Refused client connection: {client.GetRemoteEndpoint().Address}:{client.GetRemoteEndpoint().Port}");
-                        client.StartDisconnect();
-                        return;
+                        Client client = new Client(server.AcceptTcpClient(), PacketSerializer, LogAction);
+
+                        if (!AllowClientToConnect(client))
+                        {
+                            LogAction?.Invoke($"Refused client connection: {client.GetRemoteEndpoint().Address}:{client.GetRemoteEndpoint().Port}");
+                            client.StartDisconnect();
+                            return;
+                        }
+
+                        TryConnectClient(client);
                     }
+                    catch (Exception ex)
+                    {
+                        ErrorLogAction?.Invoke($"{ex}: {ex.Message}\n{ex.StackTrace}");
+                    }
+                    finally
+                    {
+                        Thread.Sleep(1);
+                    }
+                }
 
-                    TryConnectClient(client);
-                }
-                catch(Exception ex)
-                {
-                    ErrorLogAction?.Invoke($"{ex}: {ex.Message}\n{ex.StackTrace}");
-                }
-                finally
-                {
-                    Thread.Sleep(1);
-                }
+                Dispose();
             }
-
-            Dispose();
+            catch (Exception ex)
+            {
+                ErrorLogAction?.Invoke($"Server task: {ex}: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         public virtual void TryConnectClient(Client client)
@@ -163,31 +176,33 @@ namespace Communicator.Net
             ClientDisconnectedEvent?.Invoke(e);
         }
 
+        private byte[] _symmetricalKey;
+        private byte[] _symmetricalIV;
+
         public void OnPacketReceived(object sender, IPacket incomingPacket)
         {
             Client client = (Client) sender;
-            IdentificationPacket identificationPacket;
+            IdentificationPacket identificationPacket = client.InitialIdentificationPacket;
             if (connectingClients.Contains(client))
             {
-                switch(incomingPacket)
+                switch (incomingPacket)
                 {
                     case IdentificationPacket ip:
+                        if (client.Status != ConnectionStatus.PreConnecting) throw new Exception($"Client sent wrong packet \"{nameof(IdentificationPacket)}\" during connection attempt! ({ConnectionStatus.PreConnecting} != {client.Status})");
+
                         // Fully connect or drop client
-                        identificationPacket = (IdentificationPacket) incomingPacket;
+                        identificationPacket = ip;
                         if (clients.ContainsKey(identificationPacket.PacketData.ServerID) || connectingClients.Any(cl => cl.InitialIdentificationPacket == null ? false : clients.ContainsKey(cl.InitialIdentificationPacket?.PacketData.ServerID)))
                         {
                             ErrorLogAction?.Invoke($"Duplicate connection with ID '{identificationPacket.PacketData.ServerID}', dropping connection!");
                             DisconnectClient(client);
                             return;
                         }
-                        break;
-                    case ConfirmationPacket cp:
-                        identificationPacket = client.InitialIdentificationPacket;
-
+                        
                         var clientEncryption = client.AsymmetricEncryptionProvider;
 
-                        var symmetricalKey = clientEncryption.Decrypt(identificationPacket.PacketData.GetKey(), clientEncryption.GetKey(true), new byte[0]);
-                        var symmetricalIV = clientEncryption.Decrypt(identificationPacket.PacketData.GetIV(), clientEncryption.GetKey(true), new byte[0]);
+                        _symmetricalKey = clientEncryption.Decrypt(identificationPacket.PacketData.GetKey(), clientEncryption.GetKey(true), new byte[0]);
+                        _symmetricalIV = clientEncryption.Decrypt(identificationPacket.PacketData.GetIV(), clientEncryption.GetKey(true), new byte[0]);
                         var passwordHashFirst = clientEncryption.Decrypt(Convert.FromBase64String(identificationPacket.PacketData.Base64PasswordHashFirst), clientEncryption.GetKey(true), new byte[0]);
                         var passwordHashSecond = clientEncryption.Decrypt(Convert.FromBase64String(identificationPacket.PacketData.Base64PasswordHashSecond), clientEncryption.GetKey(true), new byte[0]);
                         var passwordHash = Encoding.UTF8.GetString(passwordHashFirst.Concat(passwordHashSecond).ToArray());
@@ -200,9 +215,18 @@ namespace Communicator.Net
                         }
 
                         client.SetEncryption(new EncryptionProvider.S_AES());
-                        client.SetEncryptionData(symmetricalKey, symmetricalIV);
-                        client.AcceptAllPackets();
+                        client.SetEncryptionData(_symmetricalKey, _symmetricalIV);
 
+
+                        ip.ConfirmPacket(client);
+
+                        client.Status = ConnectionStatus.Connecting;
+
+                        return;
+                    case ConfirmationPacket cp:
+                        if (client.Status != ConnectionStatus.Connecting) throw new Exception($"Client sent wrong packet \"{nameof(ConfirmationPacket)}\" during connection attempt! ({ConnectionStatus.Connecting} != {client.Status})");
+
+                        client.AcceptAllPackets();
                         clients.Add(client.InitialIdentificationPacket.PacketData.ServerID, client);
                         connectingClients.Remove(client);
 
@@ -212,6 +236,8 @@ namespace Communicator.Net
                             Client = client,
                             ServiceName = identificationPacket.PacketData.ServiceIdentification
                         });
+
+                        client.Status = ConnectionStatus.Connected;
 
                         LogAction?.Invoke($"Client with ID '{identificationPacket.PacketData.ServerID}' '{identificationPacket.PacketData.ServiceIdentification}' connected!");
                         return;
