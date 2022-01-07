@@ -81,14 +81,14 @@ namespace Communicator.Net
                 var encryptionProvider = sendUnsafe ? Encryption.EncryptionProvider.NONE : EncryptionProvider;
 
                 string jsonPacket = _packetSerializer.SerializePacket(packet, packet.GetType());
-                if (packet.GetType() != typeof(HeartbeatPacket))
-                    _logAction?.Invoke($"Sending Packet: '{jsonPacket}' with encryption '{encryptionProvider.GetType()}'");
+                if (packet.GetType() != typeof(HeartbeatPacket) && packet.GetType() != typeof(ConfirmationPacket))
+                    _logAction?.Invoke($"Sending Packet: '{packet.GetType().Name}' with encryption '{encryptionProvider.GetType().Name}'");
                 byte[] data = ASCIIEncoding.UTF8.GetBytes(jsonPacket);
 
                 data = encryptionProvider.Encrypt(data, KeyBytes, IVBytes);
 
                 byte[] messageLength = BitConverter.GetBytes((Int32) data.Length);
-                Console.WriteLine($"Sending \"{packet.GetType().FullName}\" with ENC \"{encryptionProvider.GetType().FullName}\", length = {data.Length}");
+
                 _stream.Write(messageLength, 0, 4);
 
                 _stream.Write(data, 0, data.Length);
