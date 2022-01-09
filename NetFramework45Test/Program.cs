@@ -25,42 +25,13 @@ namespace NetFramework45Test
 
         static void Main(string[] args)
         {
-            /*var t = new Communicator.Net.Encryption.EncryptionProvider.S_AES();
-
-            var key = t.GetKey(true);
-            var iv = t.GetIV();
-
-            var data = Encoding.Unicode.GetBytes("My Secret message :)");
-
-            data = t.Encrypt(data, key, iv);
-            data = t.Decrypt(data, key, iv);
-
-            Console.WriteLine($"{Encoding.Unicode.GetString(data)}");
-
-            var u = new Communicator.Net.Encryption.EncryptionProvider.A_RSA();
-
-            var privateKey = u.GetKey(true);
-            var publicKey = u.GetKey(false);
-
-            data = u.Encrypt(data, publicKey, new byte[0]);
-            data = u.Decrypt(data, privateKey, new byte[0]);
-
-            Console.WriteLine($"{Encoding.Unicode.GetString(data)}");
-
-            Console.WriteLine("Press any key to continue ...");
-            Console.ReadKey();*/
 
             byte[] saltBytes = new byte[] { 0x0,0x1,0x2,0x3,0x4,0x5,0x6,0x8 };
 
 
             var salt = Convert.ToBase64String(saltBytes/*Communicator.Utils.Utils.GenerateSalt()*/);
 
-
-            var comPlugin = new TerrariaCommunicator_NetworkPlugin.ComPlugin();
-
             var ps = new PacketSerializer();
-
-            comPlugin.Register(ps);
 
             Console.WriteLine($"Base64 salt: {salt}");
 
