@@ -139,7 +139,7 @@ namespace Communicator.Net
                         }
                         catch(Exception ex)
                         {
-                            ErrorAction?.Invoke($"An error has occured (C): {ex.Message}\n{ex.StackTrace}");
+                            ErrorAction?.Invoke($"{ex} (C): {ex.Message}\n{ex.StackTrace}");
                             _shutdownEvent.Set();
                             DisconnectedEvent?.Invoke(this, new ClientDisconnectedEventArgs()
                             {
@@ -151,7 +151,7 @@ namespace Communicator.Net
                 }
                 catch(Exception ex)
                 {
-                    ErrorAction?.Invoke($"An error has occured (D): {ex.Message}\n{ex.StackTrace}");
+                    ErrorAction?.Invoke($"{ex} (D): {ex.Message}\n{ex.StackTrace}");
                 }
                 finally
                 {

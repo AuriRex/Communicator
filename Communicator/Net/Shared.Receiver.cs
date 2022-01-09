@@ -97,13 +97,13 @@ namespace Communicator.Net
                         catch (IOException ex)
                         {
                             // Handle the exception...
-                            ErrorAction?.Invoke($"An error occured (A): {ex.Message}\n{ex.StackTrace}");
+                            ErrorAction?.Invoke($"{ex} (A): {ex.Message}\n{ex.StackTrace}");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    ErrorAction?.Invoke($"An error occured (B): {ex.Message}\n{ex.StackTrace}");
+                    ErrorAction?.Invoke($"{ex} (B): {ex.Message}\n{ex.StackTrace}");
                 }
                 finally
                 {

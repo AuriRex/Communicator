@@ -101,6 +101,7 @@ namespace Communicator.Net
         /// <exception cref="ArgumentException"></exception>
         public IPacket DeserializePacket(string jsonPacket)
         {
+#warning TODO: Fix this jank
             IPacket info;
             try
             {
