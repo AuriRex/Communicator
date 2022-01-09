@@ -161,15 +161,27 @@ namespace Communicator.Net
                 }
             }
 
+            [JsonIgnore]
+            public const string kSetup = "PleaseSetup";
+
+            [JsonIgnore]
+            public bool IsSetup
+            {
+                get
+                {
+                    return Hostname != kSetup;
+                }
+            }
+
             public string Hostname { get; set; } = string.Empty;
             public int Port { get; set; } = 0;
             public string ServerId { get; set; } = string.Empty;
             public string Password { get; set; } = string.Empty;
             public string Base64Salt { get; set; } = string.Empty;
 
-            internal GSConfig()
+            public GSConfig()
             {
-
+                Hostname = kSetup;
             }
 
             public GSConfig(string hostname, int port, string serverId, string password, string base64salt)
