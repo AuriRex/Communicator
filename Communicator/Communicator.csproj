@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net45;netcoreapp3.1;netcoreapp6.0</TargetFrameworks>
+    <TargetFrameworks>net45;netcoreapp3.1;netcoreapp6.0;netcoreapp7.0</TargetFrameworks>
     <LangVersion>8.0</LangVersion>
     <Configurations>Debug;Release;tModLoader;TShock</Configurations>
   </PropertyGroup>
